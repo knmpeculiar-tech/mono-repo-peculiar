@@ -1,5 +1,6 @@
 import type { PackOption, Prisma, ProductVariant, SizeOption } from "../../prisma/generated/client";
 import { prisma } from "../lib/prisma";
+import { supabaseAdmin } from "../lib/supabase";
 import { HttpError } from "../middleware/errorHandler";
 import type {
   CreateImageInput,
@@ -10,6 +11,8 @@ import type {
 } from "../validators/product.validator";
 
 const MAX_IMAGES_PER_PRODUCT = 4;
+// Must match the bucket apps/web uploads to (lib/storage.ts).
+const PRODUCT_IMAGES_BUCKET = "product-images";
 
 // Sizes/packs are listed in the admin's chosen order, so the storefront's
 // pills come out as e.g. Small, Medium, Large rather than creation order.
@@ -181,6 +184,17 @@ export function updateImage(imageId: string, input: UpdateImageInput) {
   return prisma.productImage.update({ where: { id: imageId }, data: input });
 }
 
-export function deleteImage(imageId: string) {
-  return prisma.productImage.delete({ where: { id: imageId } });
+// The row goes first: that's what the storefront reads, so it's what has to
+// succeed. The Storage file is cleanup — if removing it fails, the image is
+// already gone from the site and an orphaned file is harmless, so log it
+// rather than failing a delete the admin already sees as done.
+export async function deleteImage(imageId: string) {
+  const image = await prisma.productImage.delete({ where: { id: imageId } });
+  const { error } = await supabaseAdmin.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .remove([image.storagePath]);
+  if (error) {
+    console.error(`Deleted image ${imageId} but couldn't remove ${image.storagePath}:`, error);
+  }
+  return image;
 }

@@ -1,3 +1,4 @@
+import { refreshStorefront } from "@/lib/cache/refreshStorefront";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { ApiErrorBody } from "@/types/api";
 
@@ -25,7 +26,7 @@ interface RequestOptions {
    */
   accessToken?: string | null;
   /** Next.js fetch caching — only meaningful for GET requests. */
-  next?: { revalidate?: number | false };
+  next?: { revalidate?: number | false; tags?: string[] };
   cache?: RequestCache;
 }
 
@@ -65,16 +66,36 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     next: options.next,
   });
 
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  const data: unknown = await res.json().catch(() => null);
+  const data: unknown = res.status === 204 ? undefined : await res.json().catch(() => null);
 
   if (!res.ok) {
     const message = (data as ApiErrorBody | null)?.error ?? `Request failed (${res.status})`;
     throw new ApiError(res.status, message);
   }
 
+  if (options.method && options.method !== "GET" && affectsStorefront(path)) {
+    // Awaited so the admin's own next page load already sees the change; a
+    // failure here mustn't turn a successful save into an error.
+    await refreshStorefront().catch((err: unknown) => {
+      console.warn("Saved, but the storefront cache couldn't be refreshed", err);
+    });
+  }
+
   return data as T;
+}
+
+// Admin writes that change something customers see. Orders and users don't.
+const STOREFRONT_ADMIN_PATHS = [
+  "/admin/products",
+  "/admin/sizes",
+  "/admin/packs",
+  "/admin/reviews",
+  "/admin/blog",
+];
+
+function affectsStorefront(path: string) {
+  return (
+    typeof window !== "undefined" &&
+    STOREFRONT_ADMIN_PATHS.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
+  );
 }

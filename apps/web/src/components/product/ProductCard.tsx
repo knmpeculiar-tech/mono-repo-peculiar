@@ -19,13 +19,14 @@ export function ProductCard({ product }: { product: Product }) {
     >
       <div className="bg-surface-muted relative flex aspect-square items-center justify-center">
         <Image
+          // object-contain: product photos must never be cropped (see ProductGallery).
           // Falls back to a placeholder packaging photo until this product
           // has real photography uploaded — see docs/decisions.md.
           src={primaryImage ? resolveStorageUrl(primaryImage.storagePath) : "/package.png"}
           alt={primaryImage?.altText ?? product.name}
           fill
           sizes="(min-width: 768px) 33vw, 50vw"
-          className="object-cover transition-transform group-hover:scale-105"
+          className="object-contain transition-transform group-hover:scale-105"
         />
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4">

@@ -39,13 +39,17 @@ export function ProductGallery({
     <div className="flex flex-col gap-3">
       <div className="bg-surface-muted relative aspect-square overflow-hidden rounded-lg">
         <Image
+          // object-contain, never cover: admin-uploaded product photos come in
+          // any shape (the client's are 3:2), and cropping cuts off packaging
+          // text. The square frame keeps the layout steady; spare space shows
+          // the muted background.
           // Falls back to a placeholder packaging photo until this product
           // has real photography uploaded — see docs/decisions.md.
           src={active ? resolveStorageUrl(active.storagePath) : "/package.png"}
           alt={active?.altText ?? productName}
           fill
           sizes="(min-width: 1024px) 50vw, 100vw"
-          className="object-cover"
+          className="object-contain"
           priority
         />
       </div>
@@ -58,7 +62,7 @@ export function ProductGallery({
               onClick={() => setActiveIndex(index)}
               aria-label={`View image ${index + 1}`}
               aria-current={index === activeIndex}
-              className={`relative h-16 w-16 overflow-hidden rounded-md border ${
+              className={`bg-surface-muted relative h-16 w-16 overflow-hidden rounded-md border ${
                 index === activeIndex ? "border-brand" : "border-border"
               }`}
             >
@@ -67,7 +71,7 @@ export function ProductGallery({
                 alt=""
                 fill
                 sizes="64px"
-                className="object-cover"
+                className="object-contain"
               />
             </button>
           ))}

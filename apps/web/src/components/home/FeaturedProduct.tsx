@@ -18,16 +18,15 @@ export function FeaturedProduct({ product }: { product: Product }) {
     <div className="grid items-center gap-10 md:grid-cols-2 md:gap-16">
       <div className="bg-surface-muted relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl">
         <Image
-          // aspect-square matches the actual product photos (1:1) — an
-          // aspect-[4/5] container here previously forced a ~20% side crop
-          // on every square image, cutting into the composition's edges.
+          // object-contain: uploaded product photos come in any shape and
+          // must never be cropped (see ProductGallery).
           // Falls back to a placeholder packaging photo until this
           // product has real photography uploaded — see docs/decisions.md.
           src={primaryImage ? resolveStorageUrl(primaryImage.storagePath) : "/package.png"}
           alt={primaryImage?.altText ?? product.name}
           fill
           sizes="(min-width: 768px) 40vw, 90vw"
-          className="object-cover"
+          className="object-contain"
         />
       </div>
       <div className="flex flex-col gap-4">

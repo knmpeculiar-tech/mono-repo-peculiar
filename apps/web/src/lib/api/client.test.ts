@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { refreshStorefront } from "@/lib/cache/refreshStorefront";
 import { ApiError, apiFetch } from "./client";
+
+// The real Server Action needs a Next.js request (cookies); here we only care
+// whether apiFetch calls it, and that a failure can't break a save.
+vi.mock("@/lib/cache/refreshStorefront", () => ({ refreshStorefront: vi.fn(async () => {}) }));
 
 // No test relies on a real browser session — every call either passes an
 // explicit accessToken or expects the "no session" fallback.
@@ -20,6 +25,7 @@ function mockFetchOnce(body: unknown, status: number) {
 describe("apiFetch", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.mocked(refreshStorefront).mockClear();
   });
 
   it("sends no Authorization header when there is no session and no accessToken is given", async () => {
@@ -75,5 +81,36 @@ describe("apiFetch", () => {
 
     const result = await apiFetch("/admin/reviews/1", { method: "DELETE", accessToken: null });
     expect(result).toBeUndefined();
+  });
+
+  it("refreshes the storefront cache after an admin write customers can see", async () => {
+    mockFetchOnce({ id: "p1" }, 200);
+    await apiFetch("/admin/products/p1", { method: "PATCH", body: { name: "New" } });
+    expect(refreshStorefront).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes after a 204 delete too (e.g. removing a product image)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+    await apiFetch("/admin/products/images/i1", { method: "DELETE" });
+    expect(refreshStorefront).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't refresh for reads, failed writes, or admin areas customers never see", async () => {
+    mockFetchOnce([], 200);
+    await apiFetch("/admin/products");
+    mockFetchOnce({ status: "shipped" }, 200);
+    await apiFetch("/admin/orders/o1/status", { method: "PATCH", body: { status: "shipped" } });
+    mockFetchOnce({ error: "Invalid" }, 400);
+    await expect(apiFetch("/admin/blog", { method: "POST", body: {} })).rejects.toThrow("Invalid");
+    expect(refreshStorefront).not.toHaveBeenCalled();
+  });
+
+  it("still returns the saved data when the cache refresh itself fails", async () => {
+    vi.mocked(refreshStorefront).mockRejectedValueOnce(new Error("no request scope"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockFetchOnce({ id: "r1" }, 201);
+    await expect(apiFetch("/admin/reviews", { method: "POST", body: {} })).resolves.toEqual({ id: "r1" });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
