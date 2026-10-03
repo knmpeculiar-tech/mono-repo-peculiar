@@ -1,10 +1,13 @@
 import Image from "next/image";
 import { buttonClassName } from "@/components/ui/Button";
-import { LockIcon, RefreshIcon, TruckIcon } from "@/components/icons";
+import { LockIcon, PackagesIcon, RefreshIcon } from "@/components/icons";
+import { BRAND_FACTS } from "@/lib/brandFacts";
 
+// Only client-confirmed claims (lib/brandFacts.ts). This row previously said
+// "Free shipping over ₹499", which was demo copy and isn't true.
 const TRUST_ITEMS = [
-  { icon: TruckIcon, label: "Free shipping over ₹499" },
-  { icon: RefreshIcon, label: "7-day easy returns" },
+  { icon: PackagesIcon, label: `${BRAND_FACTS.packsSold} packs sold` },
+  { icon: RefreshIcon, label: `${BRAND_FACTS.returnWindowDays}-day easy returns` },
   { icon: LockIcon, label: "Secure checkout" },
 ];
 

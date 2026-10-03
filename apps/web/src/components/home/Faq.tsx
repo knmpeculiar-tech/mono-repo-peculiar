@@ -1,6 +1,8 @@
-// NOTE: answers below encode real store-policy claims (returns window, free
-// shipping threshold, delivery estimate) that are placeholder assumptions,
-// not confirmed business decisions — review and adjust before launch.
+// Answers here are customer-facing policy claims. Confirmed by the client
+// (2026-10-03): 7-day returns, discreet packaging. Still unconfirmed: the
+// delivery estimate and the "unopened packs" return condition — confirm
+// before launch. Never add a shipping-cost claim (no free-shipping threshold
+// exists). Confirmed facts live in lib/brandFacts.ts.
 const FAQS = [
   {
     question: "How do I know which size to order?",

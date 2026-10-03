@@ -51,6 +51,60 @@ round trip from a real inbox. That needs a human-readable inbox.
 
 ---
 
+## 2026-10-03 — Product page: layer tech, trust sections, review paging; false claim removed
+
+Client asked for: reviews 5 at a time with "show more", a section explaining the
+product's technology (from their infographic) with a graphic, the "18,000 packs sold"
+milestone, and two researched sections that make the brand read as genuine.
+
+**Principle: trust content shows only true, checkable claims.** Invented badges and
+claims backfire with Indian shoppers, and the Consumer Protection (E-Commerce) Rules
+2020 and the 2023 dark-pattern guidelines penalise false claims and fake reviews. The
+client confirmed, via a structured question: discreet packaging ✓, 7-day returns ✓,
+layer 4 is SAP (super absorbent polymer) paper, so the infographic's "Swap paper" was a
+typo ✓, the 240 × 70 mm pad is Medium ✓. **Not confirmed, so never shown:**
+free-shipping threshold, "Made in India", certifications. These live in one file,
+`lib/brandFacts.ts`, that all trust badges read from.
+
+- **A false claim was live and is fixed.** The homepage hero said "Free shipping over
+  ₹499", demo copy the client says isn't true. Replaced with "18,000+ packs sold"; the
+  FAQ header note was updated.
+- **Review paging** (`ReviewList`, now a client component): 5 shown, then "Show more
+  reviews (N more)" adds 5 at a time. Focus moves to the first newly revealed review for
+  keyboard and screen-reader users. Data is still fetched once (it's small); this is
+  display paging, not API pagination.
+- **"What's inside every pad"** (`LayerTech`): an exploded isometric SVG of the 6 layers,
+  each textured after the infographic (perforated top sheet, pink anion beads, blue gel
+  bubbles, SAP lattice, breathable base, adhesive strip), drawn with real geometry, not
+  a pasted image. The numbered list beside it is the accessible content; the graphic is
+  `aria-hidden`. Hovering, focusing or tapping a layer lifts and outlines it and dims
+  the rest, the section's one animation, disabled under reduced motion. Below it, a spec
+  row: Medium 240 × 70 mm, 6 layers, secure wings, individually wrapped. Copy is the
+  client's own infographic claims, lightly edited, with nothing added.
+- **Researched trust section 1, buy-with-confidence**: "18,000+ packs sold" beside the
+  rating (proof of scale where shoppers look first), plus `TrustStrip` under the buy
+  buttons: secure payments (Razorpay: UPI/cards/netbanking), discreet packaging, 7-day
+  returns, order tracking (account plus WhatsApp updates). Every item is a confirmed fact
+  or something the system itself guarantees.
+- **Researched trust section 2, "Good to know before you buy"** (`ProductFaq`): 7
+  answers (anion chip, gel, size, discreet packaging, returns, payment safety,
+  tracking), each backed by the infographic, `brandFacts`, or how checkout and order
+  history actually work.
+- **Recommended but not built** (client chose "not now"): a "real company" block with
+  support contact (WhatsApp, phone, email) and registered business name and address.
+  It's the strongest genuineness signal for Indian D2C, and the 2020 rules require
+  seller identity and customer-care details on e-commerce sites.
+- Assumption: "7-day easy returns" counts from delivery ("Return within 7 days of
+  delivery"), matching the existing homepage FAQ wording. Confirm with the client.
+
+**Verified on a production build**, 1280px and 390px: reviews 5 → all 7 with the button
+gone; layer highlight works; FAQ expands; no horizontal overflow; no console errors;
+homepage shows "18,000+ packs sold" and no shipping claim. Screenshots reviewed; the
+design detector found no issues. New `ReviewList.test.tsx` (paging, focus move, ≤5
+shows no button, empty state). `lint`/`typecheck`/`test` (75 web)/`build` green.
+
+---
+
 ## 2026-10-03 — Admin feedback: toasts, save progress, working confirm dialogs
 
 Client-reported: in the admin, saving showed nothing, and delete confirmations appeared

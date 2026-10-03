@@ -73,3 +73,23 @@ export function TagIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function BoxIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 3l8 4v10l-8 4-8-4V7l8-4z" />
+      <path d="M4 7l8 4 8-4M12 11v10" />
+    </svg>
+  );
+}
+
+export function PackagesIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 10.5l5-2.5 5 2.5v6L8 19l-5-2.5v-6z" />
+      <path d="M3 10.5L8 13l5-2.5M8 13v6" />
+      <path d="M11 5.5L16 3l5 2.5v6L16 14l-2-1" />
+      <path d="M11 5.5L16 8l5-2.5M16 8v3" />
+    </svg>
+  );
+}

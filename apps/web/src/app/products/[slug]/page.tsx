@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductGallery } from "@/components/product/ProductGallery";
+import { PackagesIcon } from "@/components/icons";
+import { LayerTech } from "@/components/product/LayerTech";
+import { ProductFaq } from "@/components/product/ProductFaq";
 import { ReviewList } from "@/components/product/ReviewList";
+import { TrustStrip } from "@/components/product/TrustStrip";
 import { ReviewStars } from "@/components/product/ReviewStars";
 import { VariantSelector } from "@/components/product/VariantSelector";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { ApiError } from "@/lib/api/client";
 import { getProductBySlug, listProducts } from "@/lib/api/products";
 import { listProductReviews } from "@/lib/api/reviews";
+import { BRAND_FACTS } from "@/lib/brandFacts";
 import { breadcrumbJsonLd, productJsonLd } from "@/lib/seo/jsonld";
 import { resolveStorageUrl } from "@/lib/storage";
 
@@ -79,14 +84,24 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="flex flex-col gap-6">
           <div>
             <h1 className="text-heading-1">{product.name}</h1>
-            {averageRating !== null ? (
-              <div className="mt-2 flex items-center gap-2">
-                <ReviewStars rating={averageRating} />
-                <span className="text-caption">
-                  {reviews.length} review{reviews.length === 1 ? "" : "s"}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {averageRating !== null ? (
+                <a href="#reviews" className="flex items-center gap-2 hover:underline">
+                  <ReviewStars rating={averageRating} />
+                  <span className="text-caption">
+                    {reviews.length} review{reviews.length === 1 ? "" : "s"}
+                  </span>
+                </a>
+              ) : null}
+              {/* Proof of scale beside the rating, where shoppers look first. */}
+              <span className="text-caption flex items-center gap-1.5">
+                <PackagesIcon className="h-4 w-4" />
+                <span>
+                  <strong className="text-foreground font-semibold">{BRAND_FACTS.packsSold}</strong>{" "}
+                  packs sold
                 </span>
-              </div>
-            ) : null}
+              </span>
+            </div>
           </div>
 
           {product.description ? (
@@ -99,13 +114,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
             imageUrl={primaryImageUrl}
             variants={product.variants}
           />
+
+          <TrustStrip />
         </div>
       </div>
 
-      <section className="border-border mt-16 border-t pt-10">
+      <section id="reviews" className="border-border mt-16 scroll-mt-24 border-t pt-12">
         <h2 className="text-heading-2 mb-6">Reviews</h2>
         <ReviewList reviews={reviews} />
       </section>
+
+      <LayerTech />
+
+
+      <ProductFaq />
     </div>
   );
 }
