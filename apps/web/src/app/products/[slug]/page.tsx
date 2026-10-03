@@ -119,8 +119,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
       </div>
 
-      <section id="reviews" className="border-border mt-16 scroll-mt-24 border-t pt-12">
-        <h2 className="text-heading-2 mb-6">Reviews</h2>
+      <section id="reviews" className="mt-16 scroll-mt-24 pt-12 sm:mt-20 sm:pt-14">
+        <p className="eyebrow mb-2 sm:mb-3">Customer Reviews</p>
+        <h2 className="text-heading-2 mb-8 sm:mb-10">
+          What our customers say
+        </h2>
         <ReviewList reviews={reviews} />
       </section>
 

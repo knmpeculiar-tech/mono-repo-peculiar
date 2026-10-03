@@ -40,25 +40,52 @@ const FAQS = [
   },
 ];
 
+/** Chevron icon that rotates when the parent `<details>` is open. */
+function ChevronIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="text-muted-foreground shrink-0 transition-transform duration-300 ease-out group-open:rotate-180 motion-reduce:transition-none"
+    >
+      <path d="M5 7.5L10 12.5L15 7.5" />
+    </svg>
+  );
+}
+
 export function ProductFaq() {
   return (
-    <section aria-labelledby="product-faq-heading" className="border-border mt-16 border-t pt-12">
-      <h2 id="product-faq-heading" className="text-heading-2">
+    <section aria-labelledby="product-faq-heading" className="mt-16 pt-12 sm:mt-20 sm:pt-14">
+      {/* Eyebrow + heading */}
+      <p className="eyebrow mb-2 sm:mb-3">FAQ</p>
+      <h2
+        id="product-faq-heading"
+        className="text-heading-2"
+      >
         Good to know before you buy
       </h2>
-      <div className="border-border divide-border mt-6 max-w-3xl divide-y border-t border-b">
+
+      {/* Accordion */}
+      <div className="mt-8 flex max-w-3xl flex-col gap-3 sm:mt-10 sm:gap-4">
         {FAQS.map((faq) => (
-          <details key={faq.question} className="group py-5">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium marker:content-none">
+          <details
+            key={faq.question}
+            className="group bg-surface-muted/60 rounded-xl transition-colors duration-200 hover:bg-surface-muted sm:rounded-2xl"
+          >
+            <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-4 px-4 py-4 text-sm font-medium leading-snug marker:content-none sm:px-6 sm:py-5 sm:text-base sm:leading-normal">
               {faq.question}
-              <span
-                aria-hidden="true"
-                className="text-muted-foreground shrink-0 text-xl leading-none transition-transform group-open:rotate-45 motion-reduce:transition-none"
-              >
-                +
-              </span>
+              <ChevronIcon />
             </summary>
-            <p className="text-body text-muted-foreground mt-3 max-w-[65ch] text-sm">{faq.answer}</p>
+            <p className="text-muted-foreground px-4 pb-4 text-sm leading-relaxed sm:px-6 sm:pb-5 sm:text-base">
+              {faq.answer}
+            </p>
           </details>
         ))}
       </div>
