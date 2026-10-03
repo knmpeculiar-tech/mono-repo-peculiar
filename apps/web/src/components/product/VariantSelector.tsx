@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PriceTag } from "@/components/product/PriceTag";
 import { Button } from "@/components/ui/Button";
@@ -29,7 +30,8 @@ export function VariantSelector({
   imageUrl,
   variants,
 }: VariantSelectorProps) {
-  const { add } = useCart();
+  const router = useRouter();
+  const { add, set, openDrawer } = useCart();
   const sizes = uniqueInOrder(variants.map((v) => v.size));
   const containerTypes = uniqueInOrder(variants.map((v) => v.containerType));
   const padsByContainerType = new Map(variants.map((v) => [v.containerType, v.padsPerPack]));
@@ -41,7 +43,6 @@ export function VariantSelector({
     variants[0]?.containerType ?? null,
   );
   const [quantity, setQuantity] = useState(1);
-  const [justAdded, setJustAdded] = useState(false);
 
   const resolvedVariant =
     variants.find((v) => v.size === selectedSize && v.containerType === selectedContainerType) ??
@@ -78,17 +79,30 @@ export function VariantSelector({
     }
   }
 
-  function handleAddToCart() {
-    if (!resolvedVariant || resolvedVariant.stock <= 0) return;
-    add(resolvedVariant.id, quantity, {
+  const canBuy = resolvedVariant !== null && resolvedVariant.stock > 0;
+
+  function snapshotOf(variant: ProductVariant) {
+    return {
       productSlug,
       productName,
-      variantLabel: resolvedVariant.name,
-      priceInPaise: resolvedVariant.priceInPaise,
+      variantLabel: variant.name,
+      priceInPaise: variant.priceInPaise,
       imageUrl,
-    });
-    setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 2000);
+    };
+  }
+
+  function handleAddToCart() {
+    if (!canBuy || !resolvedVariant) return;
+    add(resolvedVariant.id, quantity, snapshotOf(resolvedVariant));
+    openDrawer();
+  }
+
+  // Signed-out customers are bounced to /login?next=/checkout by proxy.ts and
+  // come straight back; the cart survives in localStorage meanwhile.
+  function handleBuyNow() {
+    if (!canBuy || !resolvedVariant) return;
+    set(resolvedVariant.id, quantity, snapshotOf(resolvedVariant));
+    router.push("/checkout");
   }
 
   if (variants.length === 0) {
@@ -175,9 +189,14 @@ export function VariantSelector({
         </div>
       </div>
 
-      <Button onClick={handleAddToCart} disabled={!resolvedVariant || resolvedVariant.stock <= 0}>
-        {justAdded ? "Added ✓" : "Add to cart"}
-      </Button>
+      <div className="grid grid-cols-2 gap-3">
+        <Button variant="secondary" onClick={handleAddToCart} disabled={!canBuy}>
+          Add to cart
+        </Button>
+        <Button onClick={handleBuyNow} disabled={!canBuy}>
+          Buy now
+        </Button>
+      </div>
     </div>
   );
 }

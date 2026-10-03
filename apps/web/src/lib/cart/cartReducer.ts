@@ -17,6 +17,9 @@ export interface CartItem {
 
 export type CartAction =
   | { type: "add"; variantId: string; quantity: number; snapshot: CartItemSnapshot }
+  // "Buy now": the line ends up at exactly `quantity`, not existing + quantity,
+  // so tapping Add to cart and then Buy now doesn't silently double the order.
+  | { type: "set"; variantId: string; quantity: number; snapshot: CartItemSnapshot }
   | { type: "updateQuantity"; variantId: string; quantity: number }
   | { type: "remove"; variantId: string }
   | { type: "clear" }
@@ -37,6 +40,13 @@ export function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
         ...items,
         { variantId: action.variantId, quantity: action.quantity, snapshot: action.snapshot },
       ];
+    }
+    case "set": {
+      const rest = items.filter((item) => item.variantId !== action.variantId);
+      if (action.quantity <= 0) return rest;
+      const line = { variantId: action.variantId, quantity: action.quantity, snapshot: action.snapshot };
+      const index = items.findIndex((item) => item.variantId === action.variantId);
+      return index === -1 ? [...items, line] : items.map((item, i) => (i === index ? line : item));
     }
     case "updateQuantity": {
       if (action.quantity <= 0) {

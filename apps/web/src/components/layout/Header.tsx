@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCart } from "@/lib/cart/CartProvider";
 import { CartDrawer } from "./CartDrawer";
+import { Logo } from "./Logo";
 
 export function Header() {
-  const { items, isHydrated } = useCart();
+  const { items, isHydrated, isDrawerOpen, openDrawer, closeDrawer } = useCart();
   const { user, signOut } = useAuth();
-  const [isCartOpen, setIsCartOpen] = useState(false);
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -17,8 +16,8 @@ export function Header() {
     <>
       <header className="border-border bg-surface/95 sticky top-0 z-40 border-b backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="font-display text-foreground text-xl font-semibold">
-            Peculiar
+          <Link href="/" aria-label="Peculiar home" className="text-foreground -my-1 py-1">
+            <Logo className="w-28 sm:w-32" />
           </Link>
           <nav className="flex items-center gap-4 sm:gap-6" aria-label="Main">
             <Link href="/about" className="text-body hover:text-brand hidden sm:inline">
@@ -43,7 +42,7 @@ export function Header() {
             )}
             <button
               type="button"
-              onClick={() => setIsCartOpen(true)}
+              onClick={openDrawer}
               aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}`}
               className="hover:bg-surface-muted relative rounded-md p-2"
             >
@@ -57,7 +56,7 @@ export function Header() {
           </nav>
         </div>
       </header>
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <CartDrawer isOpen={isDrawerOpen} onClose={closeDrawer} />
     </>
   );
 }

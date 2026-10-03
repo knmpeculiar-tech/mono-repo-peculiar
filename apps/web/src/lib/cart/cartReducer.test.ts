@@ -69,4 +69,26 @@ describe("cartReducer", () => {
     const replacement: CartItem[] = [{ variantId: "v9", quantity: 4, snapshot }];
     expect(cartReducer([], { type: "replace", items: replacement })).toEqual(replacement);
   });
+
+  it("set adds a missing line at exactly the given quantity", () => {
+    const result = cartReducer([], { type: "set", variantId: "v1", quantity: 3, snapshot });
+    expect(result).toEqual<CartItem[]>([{ variantId: "v1", quantity: 3, snapshot }]);
+  });
+
+  it("set overwrites an existing line's quantity instead of adding to it, keeping its position", () => {
+    const initial: CartItem[] = [
+      { variantId: "v1", quantity: 2, snapshot },
+      { variantId: "v2", quantity: 1, snapshot: otherSnapshot },
+    ];
+    const result = cartReducer(initial, { type: "set", variantId: "v1", quantity: 1, snapshot });
+    expect(result).toEqual<CartItem[]>([
+      { variantId: "v1", quantity: 1, snapshot },
+      { variantId: "v2", quantity: 1, snapshot: otherSnapshot },
+    ]);
+  });
+
+  it("set to zero removes the line", () => {
+    const initial: CartItem[] = [{ variantId: "v1", quantity: 2, snapshot }];
+    expect(cartReducer(initial, { type: "set", variantId: "v1", quantity: 0, snapshot })).toEqual([]);
+  });
 });

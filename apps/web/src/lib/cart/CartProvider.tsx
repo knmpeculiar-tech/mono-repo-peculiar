@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useReducer, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useReducer, useState } from "react";
 import { cartReducer, type CartItem, type CartItemSnapshot } from "./cartReducer";
 
 const STORAGE_KEY = "peculiar:cart:v1";
@@ -10,10 +10,17 @@ interface CartContextValue {
   /** False until the client has read localStorage — avoids an SSR/CSR mismatch. */
   isHydrated: boolean;
   add: (variantId: string, quantity: number, snapshot: CartItemSnapshot) => void;
+  /** Puts the line at exactly `quantity` (adding it if absent) — used by Buy now. */
+  set: (variantId: string, quantity: number, snapshot: CartItemSnapshot) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   remove: (variantId: string) => void;
   clear: () => void;
   subtotalInPaise: number;
+  // Lives here rather than in Header so the product page can open the drawer
+  // right after Add to cart, as confirmation with a Checkout button in reach.
+  isDrawerOpen: boolean;
+  openDrawer: () => void;
+  closeDrawer: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -32,6 +39,9 @@ function readStoredCart(): CartItem[] {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, dispatch] = useReducer(cartReducer, []);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
 
   useEffect(() => {
     dispatch({ type: "replace", items: readStoredCart() });
@@ -67,10 +77,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     isHydrated,
     add: (variantId, quantity, snapshot) =>
       dispatch({ type: "add", variantId, quantity, snapshot }),
+    set: (variantId, quantity, snapshot) =>
+      dispatch({ type: "set", variantId, quantity, snapshot }),
     updateQuantity: (variantId, quantity) => dispatch({ type: "updateQuantity", variantId, quantity }),
     remove: (variantId) => dispatch({ type: "remove", variantId }),
     clear: () => dispatch({ type: "clear" }),
     subtotalInPaise,
+    isDrawerOpen,
+    openDrawer,
+    closeDrawer,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

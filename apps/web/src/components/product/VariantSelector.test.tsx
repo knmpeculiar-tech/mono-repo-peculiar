@@ -1,8 +1,21 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
-import { CartProvider } from "@/lib/cart/CartProvider";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CartProvider, useCart } from "@/lib/cart/CartProvider";
 import type { ProductVariant } from "@/types/api";
 import { VariantSelector } from "./VariantSelector";
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
+// Exposes cart state to assertions without depending on the header/drawer markup.
+function CartProbe() {
+  const { items, isDrawerOpen } = useCart();
+  return (
+    <output data-testid="cart" data-open={String(isDrawerOpen)}>
+      {items.map((item) => `${item.variantId}x${item.quantity}`).join(",")}
+    </output>
+  );
+}
 
 function makeVariant(overrides: Partial<ProductVariant> & Pick<ProductVariant, "id">): ProductVariant {
   return {
@@ -44,12 +57,14 @@ function renderSelector(variants: ProductVariant[]) {
   return render(
     <CartProvider>
       <VariantSelector productSlug="pads" productName="Pads" imageUrl={null} variants={variants} />
+      <CartProbe />
     </CartProvider>,
   );
 }
 
 beforeEach(() => {
   window.localStorage.clear();
+  push.mockClear();
 });
 
 describe("VariantSelector", () => {
@@ -99,9 +114,33 @@ describe("VariantSelector", () => {
     expect(screen.queryByText(/% off/)).not.toBeInTheDocument();
   });
 
-  it("disables Add to cart when the resolved variant is out of stock", () => {
+  it("Add to cart adds the item and opens the cart drawer, without leaving the page", () => {
+    renderSelector(sparseVariants);
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+    expect(screen.getByTestId("cart")).toHaveTextContent("v1x1");
+    expect(screen.getByTestId("cart")).toHaveAttribute("data-open", "true");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("Buy now puts the chosen quantity in the cart and goes to checkout", () => {
+    renderSelector(sparseVariants);
+    fireEvent.click(screen.getByRole("button", { name: "Increase quantity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buy now" }));
+    expect(screen.getByTestId("cart")).toHaveTextContent("v1x2");
+    expect(push).toHaveBeenCalledWith("/checkout");
+  });
+
+  it("Add to cart then Buy now doesn't double the quantity", () => {
+    renderSelector(sparseVariants);
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buy now" }));
+    expect(screen.getByTestId("cart")).toHaveTextContent("v1x1");
+  });
+
+  it("disables both buttons when the resolved variant is out of stock", () => {
     renderSelector([makeVariant({ id: "v1", stock: 0 })]);
     expect(screen.getByRole("button", { name: /add to cart/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Buy now" })).toBeDisabled();
     expect(screen.getByText("Out of stock")).toBeInTheDocument();
   });
 
