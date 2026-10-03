@@ -1,0 +1,108 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/*
+ * Design tokens as CSS custom properties (Tailwind v4's CSS-first config —
+ * see @theme below). Components are written against semantic utility names
+ * (bg-surface, text-foreground, bg-brand) never raw palette classes, so any
+ * future design refinement is a value change here, not a component rewrite.
+ *
+ * Light mode only, by explicit client decision — no dark theme.
+ *
+ * Brand anchor: #741C47 (client-provided, from the product packaging) is
+ * --brand-700. Used sparingly — primary buttons, links, small accents —
+ * never as a large surface/background fill. The canvas is white/off-white.
+ */
+
+:root {
+  --background: #ffffff;
+  --foreground: #201a1c;
+  --surface: #ffffff;
+  --surface-muted: #f7f5f3;
+  --muted-foreground: #6f6864;
+  --border: #e7e2de;
+
+  --brand-50: #fbf1f5;
+  --brand-100: #f6dee8;
+  --brand-200: #edbcd2;
+  --brand-300: #de8fb0;
+  --brand-400: #c85f8b;
+  --brand-500: #a83a69;
+  --brand-600: #8c2856;
+  --brand-700: #741c47; /* the confirmed brand color */
+  --brand-800: #5c1638;
+  --brand-900: #45102a;
+  --brand-950: #2c0a1a;
+  --brand: var(--brand-700);
+  --brand-foreground: #ffffff;
+
+  --danger: #b3261e;
+  --danger-foreground: #ffffff;
+  --success: #2e7d4f;
+  --success-foreground: #ffffff;
+
+  /* --font-display and --font-body are declared on <html> by next/font
+     (see layout.tsx) — Fraunces for display, Public Sans for body. */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+
+/* Semantic type scale — defined once here, not stacked ad hoc in JSX. */
+@layer components {
+  .text-heading-1 {
+    font-family: var(--font-display);
+    @apply text-4xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-5xl;
+  }
+  .text-heading-2 {
+    font-family: var(--font-display);
+    @apply text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl;
+  }
+  .text-heading-3 {
+    font-family: var(--font-display);
+    @apply text-xl font-semibold sm:text-2xl;
+  }
+  .text-body {
+    @apply text-base leading-relaxed;
+  }
+  .text-caption {
+    @apply text-muted-foreground text-sm;
+  }
+  .eyebrow {
+    @apply text-brand text-xs font-semibold tracking-[0.14em] uppercase;
+  }
+}

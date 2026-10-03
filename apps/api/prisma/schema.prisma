@@ -1,0 +1,305 @@
+datasource db {
+  provider = "postgresql"
+  // Pooled connection (Supabase's pgbouncer, port 6543) for the running app.
+  url       = env("DATABASE_URL")
+  // Direct connection (port 5432), used only by `prisma migrate` — pgbouncer's
+  // transaction pooling mode doesn't support the prepared statements migrate needs.
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  // Explicit output rather than node_modules, so the client doesn't depend on
+  // pnpm's symlinked layout. Generated output is gitignored, regenerate with
+  // `pnpm db:generate`.
+  output = "./generated/client"
+}
+
+// NOTE on this file: `products`, `product_images`, `product_variants`,
+// `orders`, `order_items`, `payments`, `payment_events`, and `idempotency_keys`
+// already existed in the live Supabase database before this schema was
+// written (built directly against Postgres, not via Prisma). This schema
+// adopts that structure as the baseline (via @map/@@map to the existing
+// snake_case names) rather than replacing it, and adds `profiles`, `reviews`,
+// and `blog_posts`, plus a few new columns (variant size/containerType,
+// order.profileId). See docs/decisions.md for the full reconciliation.
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+// Mirrors a row in Supabase's auth.users (id is the same UUID). Prisma
+// doesn't manage auth.users directly, so the FK to it is added by hand in
+// the migration SQL rather than modeled here — see docs/decisions.md.
+model Profile {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  fullName  String?  @map("full_name")
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  orders Order[]
+
+  @@map("profiles")
+  @@index([role])
+}
+
+model Product {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  images   ProductImage[]
+  variants ProductVariant[]
+  reviews  Review[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  // Path within Supabase Storage, not a public URL directly.
+  storagePath String   @map("storage_path")
+  altText     String?  @map("alt_text")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+  @@index([productId], map: "idx_product_images_product_id")
+}
+
+// Admin-managed lists of the sizes and pack types a product can be sold in
+// (e.g. Small/Medium/Large, Regular Pack (6 pads)/Jumbo Pack (12 pads)).
+// Shared across products, so renaming one updates every product using it.
+model SizeOption {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  variants ProductVariant[]
+
+  @@map("size_options")
+}
+
+model PackOption {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  padsPerPack Int      @map("pads_per_pack")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  variants ProductVariant[]
+
+  @@map("pack_options")
+}
+
+// One purchasable SKU = a Size + Pack combination (e.g. "Medium" + "Jumbo
+// Pack"). The display label ("Medium - Jumbo Pack (12 pads)") is computed
+// from the linked options on read, not stored — see product.service.ts.
+model ProductVariant {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  sizeOptionId String   @map("size_option_id") @db.Uuid
+  packOptionId String   @map("pack_option_id") @db.Uuid
+  sku          String   @unique
+  // What the customer pays. Always what checkout charges.
+  priceInPaise Int      @map("price_paise")
+  // The higher "normal" price, shown struck through to display the
+  // discount. Never charged. DB CHECK keeps it >= priceInPaise.
+  mrpInPaise   Int      @map("mrp_paise")
+  stock        Int      @default(0) @map("stock_quantity")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sizeOption SizeOption  @relation(fields: [sizeOptionId], references: [id], onDelete: Restrict)
+  packOption PackOption  @relation(fields: [packOptionId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@map("product_variants")
+  @@unique([productId, sizeOptionId, packOptionId])
+  @@index([productId], map: "idx_product_variants_product_id")
+}
+
+model Order {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderNumber String  @unique @map("order_number")
+
+  // Nullable only for orders placed before sign-in was required at checkout
+  // (see docs/decisions.md) — every order created from here on has one.
+  profileId String?  @map("profile_id") @db.Uuid
+  profile   Profile? @relation(fields: [profileId], references: [id])
+
+  // Plain text + a DB CHECK constraint (`orders_status_check`, in migration
+  // 20260928100000 — Prisma can't model it here), not a native Postgres enum:
+  // pending -> confirmed -> processing -> shipped -> delivered, or cancelled.
+  status String @default("pending")
+
+  customerName    String  @map("customer_name")
+  customerEmail   String? @map("customer_email")
+  customerPhone   String  @map("customer_phone")
+  shippingAddress Json    @map("shipping_address")
+
+  // Always recomputed server-side from ProductVariant.priceInPaise at order
+  // creation time — never trust a client-submitted total.
+  subtotalInPaise Int @map("subtotal_paise")
+  shippingInPaise Int @default(0) @map("shipping_paise")
+  totalInPaise    Int @map("total_paise")
+
+  // Independent of `status` — admin manually sends these over WhatsApp, and
+  // e.g. an order can be "shipped" with the dispatch message still unsent.
+  // null = not sent yet; a timestamp = when it was marked sent.
+  confirmationMsgSentAt DateTime? @map("confirmation_msg_sent_at") @db.Timestamptz(6)
+  dispatchMsgSentAt     DateTime? @map("dispatch_msg_sent_at") @db.Timestamptz(6)
+  deliveryMsgSentAt     DateTime? @map("delivery_msg_sent_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@map("orders")
+  @@index([createdAt(sort: Desc)], map: "idx_orders_created_at")
+  @@index([customerPhone], map: "idx_orders_customer_phone")
+  @@index([status], map: "idx_orders_status")
+  @@index([profileId])
+}
+
+model OrderItem {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId   String @map("order_id") @db.Uuid
+  variantId String @map("variant_id") @db.Uuid
+
+  // Snapshotted at purchase time so order history stays meaningful even if
+  // the product/variant is later renamed, re-priced, or archived.
+  productName       String @map("product_name")
+  variantName       String @map("variant_name")
+  sku               String
+  quantity          Int
+  unitPriceInPaise  Int    @map("unit_price_paise")
+  totalPriceInPaise Int    @map("total_price_paise")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("order_items")
+  @@index([orderId], map: "idx_order_items_order_id")
+  @@index([variantId], map: "idx_order_items_variant_id")
+}
+
+// One row per payment attempt against an order. `provider`-prefixed fields
+// are deliberately generic (not Razorpay-specific) in the existing schema.
+model Payment {
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId           String @map("order_id") @db.Uuid
+  provider          String @default("razorpay")
+  providerOrderId   String? @unique @map("provider_order_id")
+  providerPaymentId String? @unique @map("provider_payment_id")
+  amountInPaise     Int    @map("amount_paise")
+  // created -> pending -> paid | failed, or refunded. Enforced by
+  // `payments_status_check` (migration 20260928100000).
+  status            String @default("created")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+  @@index([orderId], map: "idx_payments_order_id")
+  @@index([status], map: "idx_payments_status")
+}
+
+// Idempotent webhook processing: a row is inserted the moment an event is
+// received (claiming it via the unique constraint below) and `processedAt`
+// is stamped once handling finishes — decoupling "we got this" from "we
+// acted on this," so a crash mid-processing is visible (processedAt IS NULL)
+// rather than silently lost.
+model PaymentEvent {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider        String    @default("razorpay")
+  providerEventId String    @map("provider_event_id")
+  eventType       String    @map("event_type")
+  payload         Json
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("payment_events")
+  @@unique([provider, providerEventId], map: "payment_events_provider_event_unique")
+  @@index([createdAt(sort: Desc)], map: "idx_payment_events_created_at")
+}
+
+// Generic idempotency mechanism for any write endpoint, not just orders: a
+// caller-supplied key is claimed atomically (unique constraint on `key`),
+// and the eventual response is cached against it so a retried request with
+// the same key replays the original outcome instead of repeating the
+// operation. `requestHash` catches a key being reused with a different
+// payload (a client bug, not a legitimate retry).
+model IdempotencyKey {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key            String    @unique
+  operation      String
+  requestHash    String    @map("request_hash")
+  responseStatus Int?      @map("response_status")
+  responseBody   Json?     @map("response_body")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+
+  @@map("idempotency_keys")
+  @@index([expiresAt], map: "idx_idempotency_expires_at")
+}
+
+// Written by the admin, not submitted by customers — see docs/decisions.md.
+model Review {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  authorName  String   @map("author_name")
+  rating      Int
+  title       String
+  body        String
+  isPublished Boolean  @default(true) @map("is_published")
+  imagePaths  String[] @default([]) @map("image_paths")
+  videoPaths  String[] @default([]) @map("video_paths")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+  @@index([productId, isPublished])
+}
+
+model BlogPost {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  slug            String    @unique
+  excerpt         String?
+  content         String
+  coverImageUrl   String?   @map("cover_image_url")
+  metaTitle       String?   @map("meta_title")
+  metaDescription String?   @map("meta_description")
+  isPublished     Boolean   @default(false) @map("is_published")
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("blog_posts")
+  @@index([isPublished, publishedAt])
+}
