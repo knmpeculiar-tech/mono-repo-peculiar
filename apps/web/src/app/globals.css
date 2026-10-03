@@ -106,3 +106,18 @@ body {
     @apply text-brand text-xs font-semibold tracking-[0.14em] uppercase;
   }
 }
+
+/* Admin feedback motion: one short ease-out entrance for dialogs and toasts.
+   Applied via motion-safe: utilities, so reduced-motion users get none. */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}

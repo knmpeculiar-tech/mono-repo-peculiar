@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { ReviewForm } from "@/components/admin/ReviewForm";
-import { buttonClassName } from "@/components/ui/Button";
 import { listAdminProducts } from "@/lib/api/admin/products";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,9 +21,9 @@ export default async function NewReviewPage() {
         backHref="/admin/reviews"
         backLabel="Reviews"
         actions={
-          <button type="submit" form="review-form" className={buttonClassName()}>
+          <SaveButton form="review-form" pendingLabel="Creating…">
             Create review
-          </button>
+          </SaveButton>
         }
       />
       <ReviewForm products={products} />

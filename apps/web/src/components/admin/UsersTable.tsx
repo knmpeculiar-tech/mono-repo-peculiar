@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { ConfirmDialog } from "@/components/admin/feedback/ConfirmDialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/Table";
-import { ApiError } from "@/lib/api/client";
 import { deleteAdminUser } from "@/lib/api/admin/users";
 import { formatIST } from "@/lib/date";
 import type { AdminUserListItem } from "@/types/api";
@@ -15,22 +14,15 @@ import type { AdminUserListItem } from "@/types/api";
 export function UsersTable({ users }: { users: AdminUserListItem[] }) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<AdminUserListItem | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    try {
-      await deleteAdminUser(deleteTarget.id);
-      setDeleteTarget(null);
-      router.refresh();
-    } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Couldn't delete this user.");
-    }
+    await deleteAdminUser(deleteTarget.id);
+    router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {errorMessage ? <p className="text-danger text-caption">{errorMessage}</p> : null}
       <Table>
         <Thead>
           <Tr>
@@ -66,9 +58,16 @@ export function UsersTable({ users }: { users: AdminUserListItem[] }) {
           ))}
         </Tbody>
       </Table>
-      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Delete this user?">
-        <p className="text-body mb-4">
-          {deleteTarget
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete this user?"
+        confirmLabel="Delete user"
+        pendingLabel="Deleting…"
+        successMessage="User deleted"
+        onConfirm={handleDelete}
+      >
+        {deleteTarget
             ? `${deleteTarget.email} will be permanently deleted. ${
                 deleteTarget.orderCount > 0
                   ? `Their ${deleteTarget.orderCount} past order${
@@ -77,16 +76,7 @@ export function UsersTable({ users }: { users: AdminUserListItem[] }) {
                   : "They have no past orders."
               }`
             : ""}
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleDelete}>
-            Delete
-          </Button>
-        </div>
-      </Modal>
+      </ConfirmDialog>
     </div>
   );
 }

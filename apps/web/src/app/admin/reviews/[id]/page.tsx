@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { ReviewForm } from "@/components/admin/ReviewForm";
-import { buttonClassName } from "@/components/ui/Button";
 import { listAdminProducts } from "@/lib/api/admin/products";
 import { listAdminReviews } from "@/lib/api/admin/reviews";
 import { createClient } from "@/lib/supabase/server";
@@ -40,9 +40,9 @@ export default async function EditReviewPage({ params }: PageProps) {
         backHref="/admin/reviews"
         backLabel="Reviews"
         actions={
-          <button type="submit" form="review-form" className={buttonClassName()}>
+          <SaveButton form="review-form" pendingLabel="Saving…">
             Save changes
-          </button>
+          </SaveButton>
         }
       />
       <ReviewForm products={products} review={review} />

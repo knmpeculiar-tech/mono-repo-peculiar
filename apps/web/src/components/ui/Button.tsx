@@ -1,6 +1,6 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
@@ -8,6 +8,8 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   secondary:
     "bg-surface text-foreground border border-border hover:bg-surface-muted disabled:opacity-60",
   ghost: "bg-transparent text-foreground hover:bg-surface-muted disabled:opacity-60",
+  // Destructive confirmations only (delete/remove) — never a page's main action.
+  danger: "bg-danger text-danger-foreground hover:bg-danger/90 disabled:opacity-60",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {

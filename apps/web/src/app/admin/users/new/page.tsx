@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { UserForm } from "@/components/admin/UserForm";
-import { buttonClassName } from "@/components/ui/Button";
 
 export const metadata: Metadata = { title: "New user" };
 
@@ -13,9 +13,9 @@ export default function NewUserPage() {
         backHref="/admin/users"
         backLabel="Users"
         actions={
-          <button type="submit" form="user-form" className={buttonClassName()}>
+          <SaveButton form="user-form" pendingLabel="Creating…">
             Create user
-          </button>
+          </SaveButton>
         }
       />
       <UserForm />

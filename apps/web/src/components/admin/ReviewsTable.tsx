@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { errorMessage, useToast } from "@/components/admin/feedback/AdminFeedback";
+import { ConfirmDialog } from "@/components/admin/feedback/ConfirmDialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/Table";
-import { ApiError } from "@/lib/api/client";
 import { deleteReview, updateReview } from "@/lib/api/admin/reviews";
 import type { Review } from "@/types/api";
 
@@ -19,18 +19,18 @@ export function ReviewsTable({
   productNameById: Record<string, string>;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [deleteTarget, setDeleteTarget] = useState<Review | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleTogglePublish(review: Review) {
     setTogglingId(review.id);
-    setErrorMessage(null);
     try {
       await updateReview(review.id, { isPublished: !review.isPublished });
+      toast.success(review.isPublished ? "Review hidden from the store" : "Review published");
       router.refresh();
     } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Couldn't update the review.");
+      toast.error(errorMessage(err, "Couldn't update the review."));
     } finally {
       setTogglingId(null);
     }
@@ -38,18 +38,12 @@ export function ReviewsTable({
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    try {
-      await deleteReview(deleteTarget.id);
-      setDeleteTarget(null);
-      router.refresh();
-    } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Couldn't delete the review.");
-    }
+    await deleteReview(deleteTarget.id);
+    router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {errorMessage ? <p className="text-danger text-caption">{errorMessage}</p> : null}
       <Table>
         <Thead>
           <Tr>
@@ -95,17 +89,17 @@ export function ReviewsTable({
           ))}
         </Tbody>
       </Table>
-      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Delete this review?">
-        <p className="text-body mb-4">This can&apos;t be undone.</p>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleDelete}>
-            Delete
-          </Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete this review?"
+        confirmLabel="Delete review"
+        pendingLabel="Deleting…"
+        successMessage="Review deleted"
+        onConfirm={handleDelete}
+      >
+        This can&apos;t be undone.
+      </ConfirmDialog>
     </div>
   );
 }

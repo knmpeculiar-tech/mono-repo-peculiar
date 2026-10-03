@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { BlogForm } from "@/components/admin/BlogForm";
-import { buttonClassName } from "@/components/ui/Button";
 
 export const metadata: Metadata = { title: "New post" };
 
@@ -13,9 +13,9 @@ export default function NewBlogPostPage() {
         backHref="/admin/blog"
         backLabel="Blog"
         actions={
-          <button type="submit" form="blog-form" className={buttonClassName()}>
+          <SaveButton form="blog-form" pendingLabel="Creating…">
             Create post
-          </button>
+          </SaveButton>
         }
       />
       <BlogForm />

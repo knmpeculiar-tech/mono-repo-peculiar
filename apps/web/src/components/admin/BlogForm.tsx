@@ -1,22 +1,24 @@
 "use client";
 
 import { type FormEvent, useRef, useState } from "react";
+import { errorMessage, useFormPending, useToast } from "@/components/admin/feedback/AdminFeedback";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { ApiError } from "@/lib/api/client";
 import { createBlogPost, updateBlogPost } from "@/lib/api/admin/blog";
 import { blogFormSchema } from "@/lib/validation/admin";
 import type { BlogPost } from "@/types/api";
 
-// The actual submit button lives in the page's AdminPageHeader (top-right,
-// via a plain `<button form="blog-form">` — no client state needed there);
-// double-submit is guarded here with a ref instead.
+// The Save button lives in the page header (SaveButton, form="blog-form"); this
+// form reports pending via useFormPending so that button shows progress, and
+// results go to toasts. The ref still guards Enter-key double submits.
 export function BlogForm({ post }: { post?: BlogPost }) {
   const router = useRouter();
   const isSubmittingRef = useRef(false);
+  const setPending = useFormPending("blog-form");
+  const toast = useToast();
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
@@ -27,9 +29,6 @@ export function BlogForm({ post }: { post?: BlogPost }) {
   const [isPublished, setIsPublished] = useState(post?.isPublished ?? false);
   const [showPreview, setShowPreview] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({
-    type: "idle",
-  });
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -49,11 +48,12 @@ export function BlogForm({ post }: { post?: BlogPost }) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of result.error.issues) fieldErrors[String(issue.path[0])] = issue.message;
       setErrors(fieldErrors);
+      toast.error("Fix the highlighted fields first.");
       return;
     }
     setErrors({});
     isSubmittingRef.current = true;
-    setStatus({ type: "idle" });
+    setPending(true);
     const input = {
       title: result.data.title,
       slug: result.data.slug,
@@ -67,19 +67,18 @@ export function BlogForm({ post }: { post?: BlogPost }) {
     try {
       if (post) {
         await updateBlogPost(post.id, input);
-        setStatus({ type: "success", message: "Saved." });
+        toast.success("Post saved");
         router.refresh();
       } else {
         const created = await createBlogPost(input);
+        toast.success("Post created");
         router.push(`/admin/blog/${created.id}`);
       }
     } catch (err) {
-      setStatus({
-        type: "error",
-        message: err instanceof ApiError ? err.message : "Something went wrong.",
-      });
+      toast.error(errorMessage(err, "Couldn't save. Please try again."));
     } finally {
       isSubmittingRef.current = false;
+      setPending(false);
     }
   }
 
@@ -182,9 +181,6 @@ export function BlogForm({ post }: { post?: BlogPost }) {
           ) : null}
         </div>
       </div>
-
-      {status.type === "success" ? <p className="text-success text-caption">{status.message}</p> : null}
-      {status.type === "error" ? <p className="text-danger text-caption">{status.message}</p> : null}
     </form>
   );
 }

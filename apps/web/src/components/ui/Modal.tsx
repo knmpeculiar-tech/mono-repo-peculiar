@@ -10,11 +10,14 @@ export function Modal({
   onClose,
   title,
   children,
+  dismissible = true,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** False while an action is running, so Esc can't close mid-request. */
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -32,8 +35,13 @@ export function Modal({
     <dialog
       ref={ref}
       onClose={onClose}
-      onCancel={onClose}
-      className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 text-foreground backdrop:bg-foreground/40"
+      onCancel={(event) => {
+        if (!dismissible) event.preventDefault();
+      }}
+      // m-auto: the browser centers a modal <dialog> with `margin: auto`, which
+      // Tailwind's preflight resets to 0 — without it the dialog pins to the
+      // top-left corner.
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl bg-surface p-6 text-foreground shadow-[0_12px_40px_-8px_rgb(32_26_28/0.35)] backdrop:bg-foreground/45 motion-safe:animate-[dialog-in_180ms_cubic-bezier(0.16,1,0.3,1)]"
     >
       <h2 className="text-heading-3 mb-3">{title}</h2>
       {children}

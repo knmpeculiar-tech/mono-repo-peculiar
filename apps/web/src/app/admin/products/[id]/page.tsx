@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { ImagesPanel } from "@/components/admin/ImagesPanel";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { VariantsPanel } from "@/components/admin/VariantsPanel";
-import { buttonClassName } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
 import { listPackOptions, listSizeOptions } from "@/lib/api/admin/options";
 import { getAdminProduct } from "@/lib/api/admin/products";
@@ -48,9 +48,9 @@ export default async function AdminProductPage({ params }: ProductPageProps) {
         backHref="/admin/products"
         backLabel="Products"
         actions={
-          <button type="submit" form="product-form" className={buttonClassName()}>
+          <SaveButton form="product-form" pendingLabel="Saving…">
             Save changes
-          </button>
+          </SaveButton>
         }
       />
       <ProductForm product={product} />

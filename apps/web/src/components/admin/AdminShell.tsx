@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from "react";
 import { AdminNav } from "./AdminNav";
+import { AdminFeedbackProvider } from "./feedback/AdminFeedback";
 
 function MenuIcon() {
   return (
@@ -18,22 +19,24 @@ export function AdminShell({ email, children }: { email: string; children: React
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen">
-      <AdminNav mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-border bg-surface flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-            className="hover:bg-surface-muted -ml-1 rounded-md p-2 md:hidden"
-          >
-            <MenuIcon />
-          </button>
-          <p className="text-caption ml-auto truncate">Signed in as {email}</p>
-        </header>
-        <main className="min-w-0 flex-1 bg-background p-4 sm:p-6">{children}</main>
+    <AdminFeedbackProvider>
+      <div className="flex min-h-screen">
+        <AdminNav mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="border-border bg-surface flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+              className="hover:bg-surface-muted -ml-1 rounded-md p-2 md:hidden"
+            >
+              <MenuIcon />
+            </button>
+            <p className="text-caption ml-auto truncate">Signed in as {email}</p>
+          </header>
+          <main className="min-w-0 flex-1 bg-background p-4 sm:p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </AdminFeedbackProvider>
   );
 }

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { BlogForm } from "@/components/admin/BlogForm";
-import { buttonClassName } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
 import { getAdminBlogPost } from "@/lib/api/admin/blog";
 import { createClient } from "@/lib/supabase/server";
@@ -37,9 +37,9 @@ export default async function EditBlogPostPage({ params }: PageProps) {
         backHref="/admin/blog"
         backLabel="Blog"
         actions={
-          <button type="submit" form="blog-form" className={buttonClassName()}>
+          <SaveButton form="blog-form" pendingLabel="Saving…">
             Save changes
-          </button>
+          </SaveButton>
         }
       />
       <BlogForm post={post} />

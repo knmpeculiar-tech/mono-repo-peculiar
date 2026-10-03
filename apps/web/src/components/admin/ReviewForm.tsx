@@ -1,12 +1,13 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { errorMessage, useFormPending, useToast } from "@/components/admin/feedback/AdminFeedback";
 import { useRouter } from "next/navigation";
+import { MediaField } from "@/components/admin/MediaField";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-import { ApiError } from "@/lib/api/client";
 import { createReview, updateReview } from "@/lib/api/admin/reviews";
 import { resolveStorageUrl, uploadReviewMedia } from "@/lib/storage";
 import { reviewFormSchema } from "@/lib/validation/admin";
@@ -27,9 +28,9 @@ function useObjectUrls(files: File[]) {
   return urls;
 }
 
-// The actual submit button lives in the page's AdminPageHeader (top-right,
-// via a plain `<button form="review-form">` — no client state needed
-// there); double-submit is guarded here with a ref instead.
+// The Save button lives in the page header (SaveButton, form="review-form"); this
+// form reports pending via useFormPending so that button shows progress, and
+// results go to toasts. The ref still guards Enter-key double submits.
 export function ReviewForm({
   products,
   review,
@@ -39,6 +40,8 @@ export function ReviewForm({
 }) {
   const router = useRouter();
   const isSubmittingRef = useRef(false);
+  const setPending = useFormPending("review-form");
+  const toast = useToast();
   const [productId, setProductId] = useState(review?.productId ?? products[0]?.id ?? "");
   const [authorName, setAuthorName] = useState(review?.authorName ?? "");
   const [rating, setRating] = useState(review ? String(review.rating) : "5");
@@ -46,9 +49,6 @@ export function ReviewForm({
   const [body, setBody] = useState(review?.body ?? "");
   const [isPublished, setIsPublished] = useState(review?.isPublished ?? true);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({
-    type: "idle",
-  });
 
   // The real review id once it exists (edit mode), or a draft id used purely
   // as a Storage folder token before the review is created — see
@@ -58,25 +58,21 @@ export function ReviewForm({
   const [existingVideoPaths, setExistingVideoPaths] = useState(review?.videoPaths ?? []);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [newVideoFiles, setNewVideoFiles] = useState<File[]>([]);
-  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const newImagePreviews = useObjectUrls(newImageFiles);
   const newVideoPreviews = useObjectUrls(newVideoFiles);
 
-  function handleFilesSelected(
-    event: ChangeEvent<HTMLInputElement>,
-    kind: "images" | "videos",
-  ) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
-    if (files.length === 0) return;
+  function handleFilesSelected(files: File[], kind: "images" | "videos") {
     const existing = kind === "images" ? existingImagePaths.length : existingVideoPaths.length;
     const pending = kind === "images" ? newImageFiles.length : newVideoFiles.length;
     const max = kind === "images" ? MAX_IMAGES : MAX_VIDEOS;
+    const setError = kind === "images" ? setImageError : setVideoError;
     if (existing + pending + files.length > max) {
-      setMediaError(`You can attach at most ${max} ${kind}.`);
+      setError(`You can attach at most ${max} ${kind} — ${max - existing - pending} more allowed.`);
       return;
     }
-    setMediaError(null);
+    setError(null);
     if (kind === "images") {
       setNewImageFiles((prev) => [...prev, ...files]);
     } else {
@@ -100,11 +96,12 @@ export function ReviewForm({
       const fieldErrors: Record<string, string> = {};
       for (const issue of result.error.issues) fieldErrors[String(issue.path[0])] = issue.message;
       setErrors(fieldErrors);
+      toast.error("Fix the highlighted fields first.");
       return;
     }
     setErrors({});
     isSubmittingRef.current = true;
-    setStatus({ type: "idle" });
+    setPending(true);
     try {
       const uploadedImagePaths = await Promise.all(
         newImageFiles.map((file) => uploadReviewMedia(file, uploadToken, "images")),
@@ -123,19 +120,18 @@ export function ReviewForm({
         setExistingVideoPaths(payload.videoPaths);
         setNewImageFiles([]);
         setNewVideoFiles([]);
-        setStatus({ type: "success", message: "Saved." });
+        toast.success("Review saved");
         router.refresh();
       } else {
         await createReview(payload);
+        toast.success("Review created");
         router.push("/admin/reviews");
       }
     } catch (err) {
-      setStatus({
-        type: "error",
-        message: err instanceof ApiError ? err.message : "Something went wrong.",
-      });
+      toast.error(errorMessage(err, "Couldn't save. Please try again."));
     } finally {
       isSubmittingRef.current = false;
+      setPending(false);
     }
   }
 
@@ -199,106 +195,64 @@ export function ReviewForm({
         </div>
       </div>
 
-      <div className="border-border bg-surface grid gap-4 rounded-lg border p-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="review-images" className="text-caption mb-1 block">
-            Images (optional, up to {MAX_IMAGES})
-          </label>
-          <input
-            id="review-images"
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => handleFilesSelected(e, "images")}
-            disabled={existingImagePaths.length + newImageFiles.length >= MAX_IMAGES}
-            className="text-caption block"
-          />
-          {(existingImagePaths.length > 0 || newImageFiles.length > 0) && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {existingImagePaths.map((path, index) => (
-                <div key={path} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail, not worth next/image's remote-pattern config for this */}
-                  <img
-                    src={resolveStorageUrl(path)}
-                    alt=""
-                    className="border-border h-16 w-16 rounded-md border object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setExistingImagePaths((prev) => prev.filter((_, i) => i !== index))}
-                    aria-label={`Remove image ${index + 1}`}
-                    className="bg-danger text-danger-foreground absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {newImagePreviews.map((url, index) => (
-                <div key={url} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- local blob: preview, next/image doesn't apply */}
-                  <img src={url} alt="" className="border-border h-16 w-16 rounded-md border object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setNewImageFiles((prev) => prev.filter((_, i) => i !== index))}
-                    aria-label={`Remove new image ${index + 1}`}
-                    className="bg-danger text-danger-foreground absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <label htmlFor="review-videos" className="text-caption mb-1 block">
-            Videos (optional, up to {MAX_VIDEOS})
-          </label>
-          <input
-            id="review-videos"
-            type="file"
-            accept="video/*"
-            multiple
-            onChange={(e) => handleFilesSelected(e, "videos")}
-            disabled={existingVideoPaths.length + newVideoFiles.length >= MAX_VIDEOS}
-            className="text-caption block"
-          />
-          {(existingVideoPaths.length > 0 || newVideoFiles.length > 0) && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {existingVideoPaths.map((path, index) => (
-                <div key={path} className="relative">
-                  <video src={resolveStorageUrl(path)} className="h-24 w-32 rounded-md" controls />
-                  <button
-                    type="button"
-                    onClick={() => setExistingVideoPaths((prev) => prev.filter((_, i) => i !== index))}
-                    aria-label={`Remove video ${index + 1}`}
-                    className="bg-danger text-danger-foreground absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {newVideoPreviews.map((url, index) => (
-                <div key={url} className="relative">
-                  <video src={url} className="h-24 w-32 rounded-md" controls />
-                  <button
-                    type="button"
-                    onClick={() => setNewVideoFiles((prev) => prev.filter((_, i) => i !== index))}
-                    aria-label={`Remove new video ${index + 1}`}
-                    className="bg-danger text-danger-foreground absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {mediaError ? <p className="text-danger text-caption sm:col-span-2">{mediaError}</p> : null}
+      <div className="border-border bg-surface grid gap-8 rounded-lg border p-5 sm:grid-cols-2">
+        <MediaField
+          label="Photos"
+          hint="Optional. JPG, PNG or WebP — click or drag files here."
+          kind="image"
+          max={MAX_IMAGES}
+          error={imageError}
+          onFilesSelected={(files) => handleFilesSelected(files, "images")}
+          items={[
+            ...existingImagePaths.map((path, index) => ({
+              key: path,
+              src: resolveStorageUrl(path),
+              removeLabel: `Remove photo ${index + 1}`,
+              onRemove: () => {
+                setExistingImagePaths((prev) => prev.filter((_, i) => i !== index));
+                setImageError(null);
+              },
+            })),
+            ...newImagePreviews.map((url, index) => ({
+              key: url,
+              src: url,
+              removeLabel: `Remove new photo ${index + 1}`,
+              onRemove: () => {
+                setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
+                setImageError(null);
+              },
+            })),
+          ]}
+        />
+        <MediaField
+          label="Videos"
+          hint="Optional. MP4 plays most reliably — click or drag files here."
+          kind="video"
+          max={MAX_VIDEOS}
+          error={videoError}
+          onFilesSelected={(files) => handleFilesSelected(files, "videos")}
+          items={[
+            ...existingVideoPaths.map((path, index) => ({
+              key: path,
+              src: resolveStorageUrl(path),
+              removeLabel: `Remove video ${index + 1}`,
+              onRemove: () => {
+                setExistingVideoPaths((prev) => prev.filter((_, i) => i !== index));
+                setVideoError(null);
+              },
+            })),
+            ...newVideoPreviews.map((url, index) => ({
+              key: url,
+              src: url,
+              removeLabel: `Remove new video ${index + 1}`,
+              onRemove: () => {
+                setNewVideoFiles((prev) => prev.filter((_, i) => i !== index));
+                setVideoError(null);
+              },
+            })),
+          ]}
+        />
       </div>
-
-      {status.type === "success" ? <p className="text-success text-caption">{status.message}</p> : null}
-      {status.type === "error" ? <p className="text-danger text-caption">{status.message}</p> : null}
     </form>
   );
 }

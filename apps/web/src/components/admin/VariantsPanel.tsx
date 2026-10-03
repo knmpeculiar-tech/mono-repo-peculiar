@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { errorMessage, useToast } from "@/components/admin/feedback/AdminFeedback";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
+import { Spinner } from "@/components/ui/Spinner";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/Table";
-import { ApiError } from "@/lib/api/client";
 import { setVariants, type VariantRowInput } from "@/lib/api/admin/products";
 import { discountPercent, parseRupeesToPaise } from "@/lib/money";
 import { variantRowFormSchema } from "@/lib/validation/admin";
@@ -116,9 +117,7 @@ export function VariantsPanel({
   const [rows, setRows] = useState(() => initialRows(variants, productSlug, sizes, packs));
   const [errors, setErrors] = useState<Record<string, RowErrors>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(
-    null,
-  );
+  const toast = useToast();
 
   const visibleSizes = sizes.filter((size) => selectedSizes.has(size.id));
   const visiblePacks = packs.filter((pack) => selectedPacks.has(pack.id));
@@ -131,7 +130,6 @@ export function VariantsPanel({
   function updateRow(size: SizeOption, pack: PackOption, patch: Partial<RowState>) {
     const key = comboKey(size.id, pack.id);
     setRows((current) => ({ ...current, [key]: { ...rowFor(size, pack), ...patch } }));
-    setMessage(null);
   }
 
   function toggle(set: Set<string>, id: string, setter: (next: Set<string>) => void) {
@@ -139,7 +137,6 @@ export function VariantsPanel({
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setter(next);
-    setMessage(null);
   }
 
   const liveCombos = new Set(
@@ -188,24 +185,20 @@ export function VariantsPanel({
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
-      setMessage({ kind: "error", text: "Fix the highlighted rows before saving." });
+      toast.error("Fix the highlighted rows before saving.");
       return;
     }
 
     setIsSubmitting(true);
-    setMessage(null);
     try {
       const product = await setVariants(productId, payload);
       // Reset from what the server actually saved, so "loaded stock" is fresh.
       setSavedVariants(product.variants);
       setRows(initialRows(product.variants, productSlug, sizes, packs));
-      setMessage({ kind: "success", text: "Sizes, packs and prices saved." });
+      toast.success("Sizes, packs and prices saved");
       router.refresh();
     } catch (err) {
-      setMessage({
-        kind: "error",
-        text: err instanceof ApiError ? err.message : "Couldn't save. Please try again.",
-      });
+      toast.error(errorMessage(err, "Couldn't save. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -370,21 +363,20 @@ export function VariantsPanel({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={handleSave} disabled={isSubmitting}>
-          {isSubmitting ? "Saving…" : "Save sizes & prices"}
+        <Button onClick={handleSave} disabled={isSubmitting} aria-busy={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Spinner />
+              Saving…
+            </>
+          ) : (
+            "Save sizes & prices"
+          )}
         </Button>
         {willHide > 0 ? (
           <p className="text-caption">
             Saving will hide {willHide} variant{willHide === 1 ? "" : "s"} currently on sale (kept
             for order history, can be re-ticked later).
-          </p>
-        ) : null}
-        {message ? (
-          <p
-            role={message.kind === "error" ? "alert" : "status"}
-            className={`text-caption ${message.kind === "error" ? "text-danger" : "text-success"}`}
-          >
-            {message.text}
           </p>
         ) : null}
       </div>

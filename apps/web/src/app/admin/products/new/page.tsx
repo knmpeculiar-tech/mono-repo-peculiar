@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { SaveButton } from "@/components/admin/feedback/SaveButton";
 import { ProductForm } from "@/components/admin/ProductForm";
-import { buttonClassName } from "@/components/ui/Button";
 
 export const metadata: Metadata = { title: "New product" };
 
@@ -13,9 +13,9 @@ export default function NewProductPage() {
         backHref="/admin/products"
         backLabel="Products"
         actions={
-          <button type="submit" form="product-form" className={buttonClassName()}>
+          <SaveButton form="product-form" pendingLabel="Creating…">
             Create product
-          </button>
+          </SaveButton>
         }
       />
       <ProductForm />

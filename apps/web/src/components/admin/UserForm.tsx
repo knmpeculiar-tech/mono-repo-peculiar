@@ -1,27 +1,27 @@
 "use client";
 
 import { type FormEvent, useRef, useState } from "react";
+import { errorMessage, useFormPending, useToast } from "@/components/admin/feedback/AdminFeedback";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { ApiError } from "@/lib/api/client";
 import { createAdminUser } from "@/lib/api/admin/users";
 import type { Role } from "@/types/api";
 
-// The actual submit button lives in the page's AdminPageHeader (top-right,
-// via a plain `<button form="user-form">` — no client state needed there),
-// not inside this component. Double-submit is guarded here with a ref
-// instead of disabling that external button.
+// The Save button lives in the page header (SaveButton, form="user-form"); this
+// form reports pending via useFormPending so that button shows progress, and
+// results go to toasts. The ref still guards Enter-key double submits.
 export function UserForm() {
   const router = useRouter();
   const isSubmittingRef = useRef(false);
+  const setPending = useFormPending("user-form");
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("CUSTOMER");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -32,12 +32,13 @@ export function UserForm() {
     if (password.length < 8) fieldErrors.password = "Password must be at least 8 characters";
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
+      toast.error("Fix the highlighted fields first.");
       return;
     }
 
     isSubmittingRef.current = true;
+    setPending(true);
     setErrors({});
-    setErrorMessage(null);
     try {
       const created = await createAdminUser({
         email: email.trim(),
@@ -46,11 +47,13 @@ export function UserForm() {
         phone: phone.trim() || undefined,
         role,
       });
+      toast.success("User created");
       router.push(`/admin/users/${created.id}`);
     } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Something went wrong.");
+      toast.error(errorMessage(err, "Couldn't save. Please try again."));
     } finally {
       isSubmittingRef.current = false;
+      setPending(false);
     }
   }
 
@@ -98,7 +101,6 @@ export function UserForm() {
           <Input id="user-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
       </div>
-      {errorMessage ? <p className="text-danger text-caption">{errorMessage}</p> : null}
     </form>
   );
 }

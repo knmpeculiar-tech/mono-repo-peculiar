@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { errorMessage, useToast } from "@/components/admin/feedback/AdminFeedback";
 import { Button } from "@/components/ui/Button";
-import { ApiError } from "@/lib/api/client";
+import { Spinner } from "@/components/ui/Spinner";
 import type { CommunicationField } from "@/lib/api/admin/orders";
 import { updateOrderCommunication } from "@/lib/api/admin/orders";
 import { formatIST } from "@/lib/date";
@@ -18,7 +19,7 @@ const ROWS: { field: CommunicationField; label: string }[] = [
 export function OrderCommunicationPanel({ order }: { order: Order }) {
   const router = useRouter();
   const [pendingField, setPendingField] = useState<CommunicationField | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   const sentAtByField: Record<CommunicationField, string | null> = {
     confirmation: order.confirmationMsgSentAt,
@@ -28,12 +29,13 @@ export function OrderCommunicationPanel({ order }: { order: Order }) {
 
   async function handleToggle(field: CommunicationField, sent: boolean) {
     setPendingField(field);
-    setErrorMessage(null);
     try {
       await updateOrderCommunication(order.id, field, sent);
+      const label = ROWS.find((row) => row.field === field)?.label ?? "Message";
+      toast.success(sent ? `${label} message marked as sent` : `${label} message marked as not sent`);
       router.refresh();
     } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Couldn't update this.");
+      toast.error(errorMessage(err, "Couldn't update this."));
     } finally {
       setPendingField(null);
     }
@@ -60,14 +62,23 @@ export function OrderCommunicationPanel({ order }: { order: Order }) {
                 variant={sentAt ? "ghost" : "secondary"}
                 onClick={() => handleToggle(field, !sentAt)}
                 disabled={isPending}
+                aria-busy={isPending}
               >
-                {isPending ? "Saving…" : sentAt ? "Undo" : "Mark sent"}
+                {isPending ? (
+                  <>
+                    <Spinner />
+                    Saving…
+                  </>
+                ) : sentAt ? (
+                  "Undo"
+                ) : (
+                  "Mark sent"
+                )}
               </Button>
             </div>
           );
         })}
       </div>
-      {errorMessage ? <p className="text-danger text-caption mt-3">{errorMessage}</p> : null}
     </div>
   );
 }

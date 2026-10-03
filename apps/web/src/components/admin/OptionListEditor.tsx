@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { errorMessage, useToast } from "@/components/admin/feedback/AdminFeedback";
+import { ConfirmDialog } from "@/components/admin/feedback/ConfirmDialog";
 import { Fragment, useState } from "react";
 import type { ZodError } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Modal } from "@/components/ui/Modal";
+import { Spinner } from "@/components/ui/Spinner";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/Table";
-import { ApiError } from "@/lib/api/client";
 import {
   createPackOption,
   createSizeOption,
@@ -40,12 +41,12 @@ function draftFrom(option: Option): Draft {
 // just carry an extra pad count.
 export function OptionListEditor({ kind, options }: { kind: Kind; options: Option[] }) {
   const router = useRouter();
+  const toast = useToast();
   const hasPads = kind === "pack";
   const noun = kind === "size" ? "size" : "pack";
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<Draft>({ name: "", padsPerPack: "", sortOrder: "" });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Draft, string>>>({});
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Option | null>(null);
 
@@ -57,7 +58,6 @@ export function OptionListEditor({ kind, options }: { kind: Kind; options: Optio
         : { name: "", padsPerPack: "", sortOrder: String(options.length) },
     );
     setFieldErrors({});
-    setErrorMessage(null);
   }
 
   function showErrors(error: ZodError) {
@@ -84,14 +84,14 @@ export function OptionListEditor({ kind, options }: { kind: Kind; options: Optio
     if (isSubmitting || !editingId) return;
     setFieldErrors({});
     setIsSubmitting(true);
-    setErrorMessage(null);
     try {
       if (await persist(editingId)) {
+        toast.success(`${kind === "size" ? "Size" : "Pack"} ${editingId === "new" ? "added" : "saved"}`);
         setEditingId(null);
         router.refresh();
       }
     } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : `Couldn't save the ${noun}.`);
+      toast.error(errorMessage(err, `Couldn't save the ${noun}.`));
     } finally {
       setIsSubmitting(false);
     }
@@ -99,14 +99,8 @@ export function OptionListEditor({ kind, options }: { kind: Kind; options: Optio
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    try {
-      await (kind === "pack" ? deletePackOption : deleteSizeOption)(deleteTarget.id);
-      setDeleteTarget(null);
-      router.refresh();
-    } catch (err) {
-      setDeleteTarget(null);
-      setErrorMessage(err instanceof ApiError ? err.message : `Couldn't delete the ${noun}.`);
-    }
+    await (kind === "pack" ? deletePackOption : deleteSizeOption)(deleteTarget.id);
+    router.refresh();
   }
 
   const editRow = (
@@ -142,8 +136,15 @@ export function OptionListEditor({ kind, options }: { kind: Kind; options: Optio
       </Td>
       <Td colSpan={2}>
         <div className="flex gap-2">
-          <Button size="sm" onClick={handleSave} disabled={isSubmitting}>
-            Save
+          <Button size="sm" onClick={handleSave} disabled={isSubmitting} aria-busy={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Spinner />
+                Saving…
+              </>
+            ) : (
+              "Save"
+            )}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>
             Cancel
@@ -161,11 +162,6 @@ export function OptionListEditor({ kind, options }: { kind: Kind; options: Optio
           Add {noun}
         </Button>
       </div>
-      {errorMessage ? (
-        <p role="alert" className="text-danger text-caption">
-          {errorMessage}
-        </p>
-      ) : null}
       {options.length === 0 && editingId !== "new" ? (
         <p className="text-caption">No {noun}s yet. Products need at least one to be sold.</p>
       ) : (
@@ -211,23 +207,17 @@ export function OptionListEditor({ kind, options }: { kind: Kind; options: Optio
           </Tbody>
         </Table>
       )}
-      <Modal
+      <ConfirmDialog
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
         title={`Delete this ${noun}?`}
+        confirmLabel={`Delete ${noun}`}
+        pendingLabel="Deleting…"
+        successMessage={`${kind === "size" ? "Size" : "Pack"} deleted`}
+        onConfirm={handleDelete}
       >
-        <p className="text-body mb-4">
-          {deleteTarget ? `"${deleteTarget.name}" will be removed from the list.` : ""}
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleDelete}>
-            Delete
-          </Button>
-        </div>
-      </Modal>
+        {deleteTarget ? `"${deleteTarget.name}" will be removed from the list.` : ""}
+      </ConfirmDialog>
     </section>
   );
 }

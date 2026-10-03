@@ -1,20 +1,20 @@
 "use client";
 
 import Image from "next/image";
+import { errorMessage, useToast } from "@/components/admin/feedback/AdminFeedback";
+import { ConfirmDialog } from "@/components/admin/feedback/ConfirmDialog";
 import { type ChangeEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { ApiError } from "@/lib/api/client";
 import { addImage, deleteImage, updateImage } from "@/lib/api/admin/products";
 import { resolveStorageUrl, uploadProductImage } from "@/lib/storage";
 import type { ProductImage } from "@/types/api";
 
 export function ImagesPanel({ productId, images }: { productId: string; images: ProductImage[] }) {
   const router = useRouter();
+  const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductImage | null>(null);
 
   async function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -22,7 +22,6 @@ export function ImagesPanel({ productId, images }: { productId: string; images: 
     event.target.value = "";
     if (!file) return;
     setIsUploading(true);
-    setErrorMessage(null);
     try {
       const storagePath = await uploadProductImage(file, productId);
       await addImage(productId, {
@@ -30,9 +29,10 @@ export function ImagesPanel({ productId, images }: { productId: string; images: 
         sortOrder: images.length,
         isPrimary: images.length === 0,
       });
+      toast.success("Image uploaded");
       router.refresh();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Couldn't upload the image.");
+      toast.error(err instanceof Error ? err.message : "Couldn't upload the image.");
     } finally {
       setIsUploading(false);
     }
@@ -41,21 +41,17 @@ export function ImagesPanel({ productId, images }: { productId: string; images: 
   async function handleSetPrimary(image: ProductImage) {
     try {
       await updateImage(image.id, { isPrimary: true });
+      toast.success("Main image updated");
       router.refresh();
     } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Couldn't update the image.");
+      toast.error(errorMessage(err, "Couldn't update the image."));
     }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    try {
-      await deleteImage(deleteTarget.id);
-      setDeleteTarget(null);
-      router.refresh();
-    } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "Couldn't delete the image.");
-    }
+    await deleteImage(deleteTarget.id);
+    router.refresh();
   }
 
   return (
@@ -78,7 +74,6 @@ export function ImagesPanel({ productId, images }: { productId: string; images: 
           onChange={handleFileSelected}
         />
       </div>
-      {errorMessage ? <p className="text-danger text-caption">{errorMessage}</p> : null}
       {images.length === 0 ? (
         <p className="text-caption">
           No images yet. This product falls back to a placeholder photo on the storefront until one
@@ -94,7 +89,8 @@ export function ImagesPanel({ productId, images }: { productId: string; images: 
                   alt={image.altText ?? ""}
                   fill
                   sizes="200px"
-                  className="object-cover"
+                  // Same fit as the storefront, so the admin sees what customers see.
+                  className="object-contain"
                 />
               </div>
               {image.isPrimary ? (
@@ -119,17 +115,17 @@ export function ImagesPanel({ productId, images }: { productId: string; images: 
           ))}
         </div>
       )}
-      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Delete this image?">
-        <p className="text-body mb-4">This can&apos;t be undone.</p>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleDelete}>
-            Delete
-          </Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete this image?"
+        confirmLabel="Delete image"
+        pendingLabel="Deleting…"
+        successMessage="Image deleted"
+        onConfirm={handleDelete}
+      >
+        This can&apos;t be undone.
+      </ConfirmDialog>
     </div>
   );
 }
