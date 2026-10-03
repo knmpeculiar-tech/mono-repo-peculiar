@@ -6,6 +6,204 @@ questions" in the root `CLAUDE.md`.
 
 ---
 
+## 2026-10-03 — Email auth flow: callback route, resend, password reset
+
+Supabase Auth is email + password only (phone provider stays off). Email confirmation is
+required on the project (`mailer_autoconfirm: false`) and mail now goes out through
+Resend as custom SMTP. The flow was broken end to end: the confirmation email had nowhere
+to land because the app had no route to turn the link into a session.
+
+- **`/auth/callback` (route handler)** handles every auth email. It accepts a PKCE
+  `code` (what Supabase's default email template produces) and a `token_hash`/`type`
+  pair (in case the template is ever switched to link straight here), sets the session
+  cookie, then redirects to `next`. If the `code` exchange fails, Supabase has already
+  verified the email by that point. The failure almost always means the link was opened
+  in another browser or device (the PKCE verifier cookie lives in the browser that
+  signed up), so we send the user to `/login?notice=email_confirmed` instead of
+  showing an error. Reset links have no such fallback and go to `/forgot-password`.
+- **Redirect URLs:** `emailRedirectTo` is built from `window.location.origin`, so
+  every deployed origin's `https://<domain>/auth/callback` must be added under
+  Supabase → Auth → URL Configuration → Redirect URLs. If it's missing, Supabase falls
+  back to the Site URL and the link silently skips the callback. `localhost:3000` is
+  already allowed (verified).
+- **Already-registered email on sign-up:** with confirmation on, Supabase returns
+  success with an empty `identities` array and sends no email. We now say "an account
+  already exists" instead of showing "check your email" forever. The trade-off is that
+  sign-up reveals whether an address is registered; for a storefront that's normal, and
+  the more helpful UX wins. Forgot-password stays deliberately neutral.
+- **`?next=` is sanitised** (`safeNextPath`): only same-origin relative paths, so a
+  crafted `/login?next=//evil.com` can't bounce a fresh session off-site.
+- Supabase error codes are mapped to customer copy (`authErrorMessage`); raw messages
+  are never shown. Unconfirmed sign-in offers a resend button. A forgot-password /
+  reset-password pair was added, since password auth without a reset path leaves
+  locked-out customers with no way back in. Client-side minimum password is 8
+  characters.
+
+**Verified** in headless Chromium against the real Supabase project, using throwaway
+users created via the admin API (no email sent) and admin-generated `token_hash`
+links, all deleted afterward: wrong password, unconfirmed sign-in with resend,
+sign-in honouring `next`, `//evil.com` blocked, duplicate sign-up message, confirm link
+→ signed in at `next`, reused link → expired notice, verifier-less `code` → confirmed
+notice, expired reset link, query notice not reflected, reset page without session,
+recovery → mismatch caught → password changed → sign-in with new password (17/17).
+**Not verified by me:** delivery of a real email through Resend, and the PKCE `code`
+round trip from a real inbox. That needs a human-readable inbox.
+
+---
+
+## 2026-10-03 — Admin feedback: toasts, save progress, working confirm dialogs
+
+Client-reported: in the admin, saving showed nothing, and delete confirmations appeared
+in the top-left corner.
+
+- **Dialog position bug**: browsers center a modal `<dialog>` with `margin: auto`,
+  and Tailwind's preflight resets every margin to 0, so every confirmation pinned to
+  the top-left. Fixed once in `ui/Modal.tsx` (`m-auto`), which also gained
+  `dismissible` (Esc can't close it mid-request), a soft shadow and a short entrance.
+- **Shared feedback layer** (`components/admin/feedback/`, no dependencies), mounted
+  once in `AdminShell`:
+  - `AdminFeedbackProvider` plus `useToast()`: corner toasts (bottom-right; bottom,
+    full-width on mobile). `role="status"` for success and `role="alert"` for errors.
+    Successes auto-dismiss after 3.5s; **errors stay until dismissed**, since those
+    are the ones that must not be missed. At most 3 on screen.
+  - `SaveButton` + `useFormPending(formId)`: the header Save buttons render far from
+    their forms (`form="…"`), so the form reports its saving state through context and
+    the button shows a spinner and "Saving…"/"Creating…", disabled. This replaces the
+    old invisible `useRef`-only guard (kept for Enter-key submits) and the "Saved." text
+    at the bottom of the form, which was usually off-screen.
+  - `ConfirmDialog`: every destructive action. A red `danger` button with
+    "Deleting…" progress; Cancel is disabled mid-request; **a failure shows its reason
+    inside the dialog**, which stays open (previously some flows closed the dialog and
+    showed the error elsewhere); success closes it and toasts.
+  - `errorMessage(err, fallback)`: shows the API's own human-written message when there
+    is one.
+- **Wired everywhere admins change data**: product, blog, review and user forms; sizes,
+    packs & prices; image upload, set-as-main and delete; review publish/hide; blog,
+    review, user, size and pack deletes; order status changes; WhatsApp message
+    tracking. Messages name the thing ("Order PEC-… marked as shipped", "Post deleted").
+- **Found while doing this: "Mark as Cancelled" had no confirmation.** Cancelling is
+  terminal and restocks the items, so one misclick ended a customer's order. It now
+  goes through `ConfirmDialog`, whose copy also says cancelling does **not** refund a
+  paid order: refunds are done in the Razorpay dashboard.
+- `@keyframes dialog-in` / `toast-in` in `globals.css`, applied via `motion-safe:`
+  only, so reduced-motion users get no animation.
+
+**Verified in a real browser on a production build** (API responses deliberately
+slowed so in-progress states are observable): the Save button shows "Saving…" and is
+disabled, then the "Product saved" toast appears and the button returns; an empty name
+shows the "Fix the highlighted fields" error toast; the delete dialog is centered (0px
+horizontal offset) at 1280px and 390px; "Deleting…" with Cancel disabled, then the
+"Post deleted" toast, dialog closed, row gone; a simulated 409 shows its message inside
+the still-open dialog. The design detector found no issues. `lint`/`typecheck`/`test`
+(71 web)/`build` green. Throwaway accounts and posts deleted. Not separately exercised
+in the browser: the order-cancel confirmation (same `ConfirmDialog` component, just
+different copy).
+
+---
+
+## 2026-10-03 — Product photos are never cropped (object-contain)
+
+The client's real product photos are 3:2 landscape (1280×853, 1536×1024), but every
+product image slot (product gallery and its thumbnails, product cards, the homepage
+featured product, the admin preview) was a square frame with `object-cover`, which cut
+off about a third of each photo's width, including packaging text. All of these
+switched to **`object-contain`**: the whole photo always shows, and spare space shows
+the muted background, the standard e-commerce treatment. Frames stay square so a
+gallery mixing photo shapes doesn't jump in layout. The admin preview matches the
+storefront, so what the admin sees is what customers get. Lifestyle and mood imagery
+(hero, About, CTA texture) deliberately keeps `object-cover`, since nothing in it is
+information. Supersedes the earlier "aspect-square matches the 1:1 photos" note on
+`FeaturedProduct`, which assumed square photography. Verified by screenshots at 1280px
+and 390px with the client's actual uploads.
+
+---
+
+## 2026-10-03 — Admin changes show on the storefront immediately (on-demand revalidation)
+
+**Problem (reported twice):** after an admin edit, e.g. replacing the product photo,
+the storefront kept showing the old data. Storefront pages are ISR-cached (product
+60s, homepage 300s, blog 600s), and Next.js serves the cached page once more *while*
+it refreshes in the background, so a change could take minutes plus an extra reload
+to appear.
+
+**Fix**, keeping the caching (it's what keeps the storefront fast and the free-tier API
+idle):
+- Every public storefront fetch (`lib/api/products.ts`, `reviews.ts`, `blog.ts`) is
+  tagged `storefront` (`lib/cache/storefrontTag.ts`). One tag for the whole site rather
+  than per resource: a handful of pages doesn't justify the risk of missing one.
+- `lib/cache/refreshStorefront.ts` is a Server Action that calls
+  **`updateTag("storefront")`** plus `revalidatePath("/", "layout")`. It's `updateTag`
+  and not `revalidateTag` because in Next 16 `revalidateTag` only marks data *stale*,
+  serving the old version once more, which is the very delay being fixed. `updateTag`
+  *expires* it, so the next request renders fresh. Server Actions are public POST
+  endpoints, so it first confirms the caller is an admin via the API's `/admin/me`,
+  using their Supabase session; anyone else gets a no-op.
+- It's invoked in **one place**, `apiFetch` (`lib/api/client.ts`): after any
+  successful browser-side write to `/admin/products|sizes|packs|reviews|blog`,
+  including 204 deletes, it's awaited before the save resolves. Orders and users don't
+  touch the storefront, so they're skipped. Centralizing it means future admin screens
+  get it automatically instead of each form having to remember. If the refresh fails,
+  the save still succeeds (logged), because the data change is what matters.
+- Limitation: edits made **outside the admin panel** (the Supabase table editor,
+  scripts, direct API calls) bypass this and still wait out the normal cache window.
+
+**Also:** `DELETE /admin/products/images/:id` now removes the file from Supabase Storage
+after deleting the row. Best-effort: a failed file removal is logged, not surfaced,
+since the image is already gone from the site. One orphan from before this change
+remains (`0f55bb93…/2f4af2b6….png`, the previous product photo).
+
+**Verified on a production build** (`next build && next start`): with the product page
+deliberately cache-warmed, an admin edited the description through the real admin
+form, and the **first** storefront load afterwards showed it, as did the 5-minute-cached
+homepage. A throwaway product image deleted via the API returned 204 and its storage
+URL stopped resolving. Unit tests cover when the refresh fires (writes to storefront
+paths, 204 deletes) and when it doesn't (reads, failed writes, orders), and that a
+failed refresh doesn't fail the save. `lint`/`typecheck`/`test` (13 api, 71 web)/`build`
+green. Test accounts and data cleaned up; the original description was restored.
+
+---
+
+## 2026-10-03 — Logo + favicon; no vercel.json
+
+- **Logo (client picked option A of four)**: a lowercase "peculiar" wordmark in
+  Fraunces, the site's existing display face, at `opsz 72, wght 600, SOFT 100`. The
+  SOFT axis rounds the terminals, a fit for the product. The i's dot is a burgundy
+  **petal**, echoing the rose petals in the site photography. The letters are converted
+  to outlines (vector paths), not live text, so the logo renders identically in the
+  header, emails, the Razorpay checkout and favicons, without depending on the web font
+  loading. Fraunces is SIL OFL, which permits this. Generation parameters: shaped with
+  HarfBuzz using the font's kerning; `i` replaced by `dotlessi`; petal (a two-cubic
+  teardrop) centered on the original dot at 1.05× its width, rotated 22°. The generator
+  was a one-off script, not part of the repo; reproduce from these parameters if the
+  mark ever needs regenerating.
+  - `components/layout/Logo.tsx`: inline SVG, letters `currentColor`, petal
+    `fill-brand`; used in the header.
+  - `public/brand/peculiar-logo.svg` (ink `#201a1c`, petal `#741c47`) and
+    `peculiar-logo-white.svg` (white, petal `brand-200`) for use outside the site
+    (Razorpay, email templates, social).
+- **Favicon**: a white soft-Fraunces "p" (`wght 700`) on a burgundy rounded square.
+  It's a plain "p" rather than "p + petal" because the petal disappears at 16px; the
+  bare letter stays crisp. Uses Next.js file conventions only, no config:
+  `app/icon.svg` (modern browsers), `app/favicon.ico` (16/32/48 PNG entries, replacing
+  the create-next-app default), `app/apple-icon.png` (180px, square and opaque, since
+  iOS applies its own mask).
+- **No `vercel.json`.** The "404 on refresh" problem belongs to client-only single-page
+  apps, which need an all-routes→`index.html` rewrite. Vercel runs Next.js natively and
+  serves every route itself, so such a rewrite would *break* this app. Verified on the
+  production build (`next build && next start`): direct loads of `/`, `/about`,
+  `/blog`, `/products/peculiar-pads`, `/login`, `/signup` and
+  `/order-confirmation/<id>` return 200. Protected routes 307 to
+  `/login?next=…`, an unknown path 404s, robots/sitemap 200. One quirk, unchanged by
+  this work: an unknown *product* slug renders the not-found page with status 200
+  rather than 404, because the route's `loading.tsx` starts streaming first. It carries
+  `<meta name="robots" content="noindex">`, so it's harmless for SEO. For Vercel, set
+  the project's **Root Directory to `apps/web`** in the dashboard and add the
+  `apps/web/.env.example` variables there. `NEXT_PUBLIC_API_URL` must point at the
+  deployed API (not localhost), and the API must be reachable while Vercel builds,
+  because product and blog pages are prerendered from it.
+
+---
+
 ## 2026-09-28 — Demo reviews; texture image moved to the closing CTA background
 
 - **Demo content for the client's new (empty) project**, created through the real admin
