@@ -164,6 +164,22 @@ export const OrderSchema = registry.register(
   }),
 );
 
+export const CreatedOrderSchema = registry.register(
+  "CreatedOrder",
+  OrderSchema.extend({
+    checkout: z
+      .object({
+        provider: z.literal("razorpay"),
+        keyId: z.string().nullable().openapi({
+          description:
+            "Public Razorpay key id of the active mode (RAZORPAY_MODE) — the key that created this order. Null when payments are mocked.",
+        }),
+        mock: z.boolean().openapi({ description: "True only in local dev with PAYMENTS_MOCK=true" }),
+      })
+      .openapi({ description: "What the browser needs to open the payment widget for this order" }),
+  }),
+);
+
 export const ReviewSchema = registry.register(
   "Review",
   z.object({

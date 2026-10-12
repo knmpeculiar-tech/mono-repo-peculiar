@@ -1,4 +1,4 @@
-import type { Order } from "@/types/api";
+import type { CreatedOrder, Order } from "@/types/api";
 import type { CheckoutFormInput } from "@/lib/validation/order";
 import { apiFetch } from "./client";
 
@@ -10,7 +10,7 @@ export interface CreateOrderInput extends CheckoutFormInput {
 // docs/decisions.md), so this auto-detects the current browser session like
 // any other Client Component call; the API rejects a missing/invalid one.
 export function createOrder(input: CreateOrderInput, idempotencyKey: string) {
-  return apiFetch<Order>("/orders", { method: "POST", body: input, idempotencyKey });
+  return apiFetch<CreatedOrder>("/orders", { method: "POST", body: input, idempotencyKey });
 }
 
 export function listMyOrders(accessToken?: string | null) {

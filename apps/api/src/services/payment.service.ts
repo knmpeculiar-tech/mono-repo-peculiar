@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { Prisma } from "../../prisma/generated/client";
-import { env } from "../config/env";
+import { paymentConfig } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../middleware/errorHandler";
 import {
@@ -30,13 +30,17 @@ export function verifyCheckoutSignature(
   razorpayPaymentId: string,
   razorpaySignature: string,
 ) {
-  const expected = hmacHex(env.RAZORPAY_KEY_SECRET, `${razorpayOrderId}|${razorpayPaymentId}`);
+  if (!paymentConfig.keySecret) return false;
+  const expected = hmacHex(paymentConfig.keySecret, `${razorpayOrderId}|${razorpayPaymentId}`);
   return timingSafeHexEqual(expected, razorpaySignature);
 }
 
 // Razorpay signs the raw request body with the separate webhook secret.
 export function verifyWebhookSignature(rawBody: Buffer, signature: string) {
-  const expected = hmacHex(env.RAZORPAY_WEBHOOK_SECRET, rawBody.toString("utf8"));
+  // No webhook configured for the active mode yet: accept nothing, rather than
+  // checking against an empty secret.
+  if (!paymentConfig.webhookSecret) return false;
+  const expected = hmacHex(paymentConfig.webhookSecret, rawBody.toString("utf8"));
   return timingSafeHexEqual(expected, signature);
 }
 
@@ -90,7 +94,7 @@ export async function verifyAndRecordCheckoutPayment(input: VerifyPaymentInput) 
   // (see order.service.ts), so there's no real signature to check here
   // either — dev/test only, gated by the same server-side env flag.
   if (
-    !env.PAYMENTS_MOCK &&
+    !paymentConfig.mock &&
     !verifyCheckoutSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)
   ) {
     throw new HttpError(400, "Invalid payment signature");
@@ -149,4 +153,12 @@ export async function processWebhookEvent(rawBody: Buffer, signature: string | u
     await handlePaymentFailed(payment.orderId, entity.order_id, entity.id);
   }
   await markEventProcessed(eventId);
+}
+
+// What the browser needs to open Razorpay's widget for an order: the public
+// key id of the *active* mode (the same key that created the Razorpay order),
+// and whether payments are mocked. Sent with each created order so the web
+// app never carries its own copy that could drift out of sync.
+export function checkoutConfig() {
+  return { provider: "razorpay" as const, keyId: paymentConfig.keyId, mock: paymentConfig.mock };
 }

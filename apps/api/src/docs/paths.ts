@@ -33,6 +33,7 @@ import {
   AdminUserDetailSchema,
   AdminUserListItemSchema,
   BlogPostSchema,
+  CreatedOrderSchema,
   ErrorResponseSchema,
   OrderSchema,
   PackOptionSchema,
@@ -595,7 +596,7 @@ registry.registerPath({
     body: jsonBody(createOrderSchema),
   },
   responses: {
-    201: ok("Order created (or the cached result of a replayed request)", OrderSchema),
+    201: ok("Order created (or the cached result of a replayed request)", CreatedOrderSchema),
     400: BAD_REQUEST,
     401: UNAUTHORIZED,
     409: err("Insufficient stock, or this Idempotency-Key was already used with a different body"),

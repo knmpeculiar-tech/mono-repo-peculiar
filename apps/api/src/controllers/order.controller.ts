@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { runIdempotentOperation } from "../lib/idempotency";
 import { HttpError } from "../middleware/errorHandler";
+import * as paymentService from "../services/payment.service";
 import * as orderService from "../services/order.service";
 import { orderStatusFilterSchema } from "../validators/order.validator";
 
@@ -17,7 +18,7 @@ export async function createOrder(req: Request, res: Response, next: NextFunctio
       req.body,
       async () => {
         const order = await orderService.createOrder(req.body, req.profile!.id);
-        return { status: 201, body: order };
+        return { status: 201, body: { ...order, checkout: paymentService.checkoutConfig() } };
       },
     );
     res.status(status).json(body);

@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import type { Prisma } from "../../prisma/generated/client";
-import { env } from "../config/env";
+import { paymentConfig } from "../config/env";
 import { prisma } from "../lib/prisma";
-import { razorpay } from "../lib/razorpay";
+import { getRazorpay } from "../lib/razorpay";
 import { HttpError } from "../middleware/errorHandler";
 import { variantDisplayName } from "./product.service";
 import type { CreateOrderInput } from "../validators/order.validator";
@@ -106,10 +106,10 @@ export async function createOrder(input: CreateOrderInput, profileId: string) {
     // PAYMENTS_MOCK skips the real Razorpay API call entirely (dev/test only
     // — see docs/decisions.md) so checkout works without a real Razorpay
     // account. The mock id is never mistakable for a real one.
-    const providerOrderId = env.PAYMENTS_MOCK
+    const providerOrderId = paymentConfig.mock
       ? `mock_order_${order.id}`
       : (
-          await razorpay.orders.create({
+          await getRazorpay().orders.create({
             amount: order.totalInPaise,
             currency: "INR",
             receipt: order.orderNumber,

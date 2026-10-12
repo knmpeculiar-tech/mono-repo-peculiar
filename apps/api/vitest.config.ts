@@ -13,9 +13,14 @@ export default defineConfig({
       SUPABASE_URL: "https://test-project.supabase.co",
       SUPABASE_SECRET_KEY: "sb_secret_test_dummy",
       SUPABASE_JWKS_URL: "https://test-project.supabase.co/auth/v1/.well-known/jwks.json",
-      RAZORPAY_KEY_ID: "rzp_test_dummy",
-      RAZORPAY_KEY_SECRET: "dummy_key_secret",
-      RAZORPAY_WEBHOOK_SECRET: "dummy_webhook_secret",
+      // Pinned explicitly: the generated Prisma client auto-loads apps/api/.env
+      // on import and fills in anything *not* set here — a developer's local
+      // PAYMENTS_MOCK=true would otherwise silently leak into the tests.
+      PAYMENTS_MOCK: "false",
+      RAZORPAY_MODE: "test",
+      RAZORPAY_TEST_KEY_ID: "rzp_test_dummy",
+      RAZORPAY_TEST_KEY_SECRET: "dummy_key_secret",
+      RAZORPAY_TEST_WEBHOOK_SECRET: "dummy_webhook_secret",
     },
   },
 });

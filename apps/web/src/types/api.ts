@@ -203,3 +203,14 @@ export interface Stats {
 export interface ApiErrorBody {
   error: string;
 }
+
+/** POST /orders response: the order plus what the browser needs to pay for it. */
+export interface CreatedOrder extends Order {
+  checkout: {
+    provider: "razorpay";
+    /** Public key id of the API's active Razorpay mode; null when payments are mocked. */
+    keyId: string | null;
+    /** True only in local dev (PAYMENTS_MOCK) — show a "simulate payment" button instead. */
+    mock: boolean;
+  };
+}

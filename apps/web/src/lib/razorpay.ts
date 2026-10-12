@@ -53,6 +53,8 @@ function loadRazorpayScript(): Promise<void> {
 }
 
 export interface OpenRazorpayCheckoutParams {
+  /** From the API's create-order response (checkout.keyId) — the same key that created the order. */
+  keyId: string;
   /** Razorpay's order id — Order.payments[0].providerOrderId from the API. */
   providerOrderId: string;
   amountInPaise: number;
@@ -72,7 +74,7 @@ export async function openRazorpayCheckout(params: OpenRazorpayCheckoutParams): 
   }
 
   const razorpay = new window.Razorpay({
-    key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+    key: params.keyId,
     amount: params.amountInPaise,
     currency: "INR",
     order_id: params.providerOrderId,

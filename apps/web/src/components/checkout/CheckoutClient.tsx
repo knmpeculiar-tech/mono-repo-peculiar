@@ -18,7 +18,7 @@ import { useCart } from "@/lib/cart/CartProvider";
 import { formatPaise } from "@/lib/money";
 import { openRazorpayCheckout, type RazorpaySuccessResponse } from "@/lib/razorpay";
 import { checkoutFormSchema } from "@/lib/validation/order";
-import type { Order, Product } from "@/types/api";
+import type { CreatedOrder, Order, Product } from "@/types/api";
 
 interface CartIssue {
   variantId: string;
@@ -26,11 +26,11 @@ interface CartIssue {
   message: string;
 }
 
-// Dev/test only — see PAYMENTS_MOCK in docs/decisions.md. When true, the real
-// Razorpay widget (which needs a real key_id and a real order it signed) is
-// never opened; a "simulate payment" button drives the same verify/confirm
-// path instead.
-const isPaymentsMock = process.env.NEXT_PUBLIC_PAYMENTS_MOCK === "true";
+// Payment mode comes from the API with each created order (order.checkout):
+// the Razorpay key id of its active mode, or mock: true in local dev, where a
+// "simulate payment" button drives the same verify/confirm path instead of the
+// real widget. The web app holds no Razorpay settings of its own, so they can't
+// drift out of sync with the key that actually created the order.
 
 export function CheckoutClient() {
   const router = useRouter();
@@ -43,7 +43,7 @@ export function CheckoutClient() {
   );
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<CreatedOrder | null>(null);
 
   const [liveProducts, setLiveProducts] = useState<Product[] | null>(null);
   const [isReconciling, setIsReconciling] = useState(true);
@@ -121,13 +121,15 @@ export function CheckoutClient() {
     setValues((prev) => ({ ...prev, [field]: value }));
   }
 
-  function openWidgetFor(currentOrder: Order) {
+  function openWidgetFor(currentOrder: CreatedOrder) {
     const payment = currentOrder.payments[0];
-    if (!payment?.providerOrderId) {
+    const keyId = currentOrder.checkout.keyId;
+    if (!payment?.providerOrderId || !keyId) {
       setFormError("Payment could not be started. Please contact support.");
       return;
     }
     void openRazorpayCheckout({
+      keyId,
       providerOrderId: payment.providerOrderId,
       amountInPaise: currentOrder.totalInPaise,
       customerName: currentOrder.customerName,
@@ -224,7 +226,7 @@ export function CheckoutClient() {
         idempotencyKey,
       );
       setOrder(created);
-      if (!isPaymentsMock) {
+      if (!created.checkout.mock) {
         openWidgetFor(created);
       }
     } catch (err) {
@@ -260,11 +262,11 @@ export function CheckoutClient() {
             <div className="border-border bg-surface rounded-lg border p-5">
               <p className="text-body font-medium">Order {order.orderNumber} created.</p>
               <p className="text-caption mt-1">
-                {isPaymentsMock
+                {order.checkout.mock
                   ? "Payments are in mock mode — simulate a successful payment to confirm it."
                   : "Complete your payment to confirm it — the order is held for you in the meantime."}
               </p>
-              {isPaymentsMock ? (
+              {order.checkout.mock ? (
                 <Button className="mt-4" onClick={() => void handleMockPayment(order)}>
                   Simulate successful payment
                 </Button>
