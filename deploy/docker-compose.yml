@@ -1,0 +1,42 @@
+# Backend on the VPS: the API plus Caddy (HTTPS reverse proxy). The frontend is
+# on Vercel; the database, auth and storage are on Supabase. See deploy/README.md.
+#
+#   docker compose -f deploy/docker-compose.yml up -d --build
+name: peculiar-api
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    # Secrets (DB URL, Supabase, Razorpay) — the same file used in local dev.
+    env_file: ../apps/api/.env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+    # Reachable only through Caddy, never directly from the internet.
+    expose:
+      - "4000"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in deploy/.env, e.g. api.peculiars.in}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here; keep the volume so renewals don't hit rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
