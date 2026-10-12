@@ -51,6 +51,127 @@ round trip from a real inbox. That needs a human-readable inbox.
 
 ---
 
+## 2026-10-13 — Hosting: API on the VPS with Docker Compose, frontend on Vercel, DB on Supabase
+
+The client bought a Hostinger VPS. Final split, client-confirmed:
+- **API**: on the VPS, run with Docker Compose.
+- **Frontend**: on Vercel. Note that Vercel's Hobby plan is non-commercial; a store
+  properly needs Pro.
+- **Database, auth and storage**: stay on Supabase. Moving only the DB off Supabase
+  would mean rebuilding auth and storage too, since `profiles.id` → `auth.users`.
+
+- `apps/api/Dockerfile`, multi-stage on `node:22-bookworm-slim` (Debian, not Alpine, to
+  avoid Prisma musl/OpenSSL engine mismatches; `openssl` installed). Install uses
+  `pnpm fetch` (lockfile-only layer, cached) then `pnpm install --offline --filter api`,
+  build (`prisma generate && tsc`), then `pnpm deploy --prod` for a self-contained
+  runtime with only production deps, `dist/` and `prisma/generated/`. It runs as the
+  `node` user and has a `HEALTHCHECK` on `/api/health`. Build context is the repo root;
+  `.dockerignore` excludes `.env*` (secrets come from `env_file` at runtime),
+  `node_modules`, build output and the web app, except `apps/web/package.json`, which
+  the workspace lockfile expects.
+- **Build on the VPS**, not on a laptop: `prisma generate` emits the engine for the
+  build machine's platform. A Mac build produced `linux-arm64`, which would be wrong for
+  an x86 server.
+- `deploy/docker-compose.yml` runs `api`, which is only `expose`d (no host port), and
+  `caddy:2-alpine` on 80/443 with automatic Let's Encrypt via `deploy/Caddyfile`. The
+  domain comes from `API_DOMAIN` in `deploy/.env`, and Compose refuses to start without
+  it. Caddy waits on the API's healthcheck; both use `restart: unless-stopped`.
+  Chosen over PM2 + nginx + certbot: one command to deploy, HTTPS with no manual cert
+  management, and identical runtime locally and on the server.
+- Migrations aren't run from the container; the image ships without the Prisma CLI or
+  migration files. Run `pnpm db:deploy` from a dev machine before deploying code that
+  needs it.
+
+**Verified locally with Docker**: the image built first try. Inside it: user `node`, a
+Linux Prisma engine, no `.env` or `src`, no dev deps; 497 MB. The full stack with
+`API_DOMAIN=localhost` gave `/api/health` 200 and `/api/products` 200 (real Supabase)
+over Caddy HTTPS, HTTP→HTTPS 308, and the API container published no host ports. The
+missing-`API_DOMAIN` guard fired. The stack was torn down afterwards. Step-by-step
+server guide in `deploy/README.md`.
+
+---
+
+## 2026-10-12 — Keep-alive job in the API so free-tier Supabase doesn't pause
+
+Supabase pauses free-plan projects after 7 days of inactivity, and the site starts with
+almost no traffic. The API is deployed on the client's **Hostinger VPS**, an always-on
+server (not Render, which was considered earlier). That makes an in-process job
+reliable. It wouldn't be on a host that sleeps when idle, since a sleeping process's
+timer never fires. A GitHub Actions schedule was briefly written for the sleeping-host
+case, then removed before ever being committed.
+
+- `src/jobs/keepAlive.ts`, started from `index.ts` after `listen`. The first ping is 60s
+  after boot (keeps startup fast; a crash-looping process doesn't hammer the DB), then
+  every `KEEP_ALIVE_HOURS` (default 24; `0` disables it). Each ping does two tiny reads,
+  covering both kinds of Supabase activity: a Prisma query (direct Postgres) and a
+  `supabaseAdmin.from("products")` read (Supabase's own API, server-side key, never in
+  the browser). Failures are logged, never thrown. Timers are `unref`'d so they never
+  block a clean shutdown.
+- Fine with one API process. Under PM2 cluster mode each worker would ping too, which is
+  harmless (a few extra tiny reads), just redundant.
+- Turn it off (`KEEP_ALIVE_HOURS=0`) once real traffic keeps the project active.
+
+Verified: 3 unit tests with fake timers (off at 0; first ping at 60s, then every
+interval; stop works; a failed ping is logged and the next still runs). A real
+`pingSupabase()` against the live project succeeded, and the running server logged
+`[keep-alive] Supabase pinged …` 60s after boot. API lint/typecheck/test (23) green.
+
+---
+
+## 2026-10-12 — Razorpay test/live switchable from one env var; API owns the key
+
+Client asked for both test and live Razorpay keys, switchable from env. Before this,
+the API's keys were placeholders, and the web app had its *own*
+`NEXT_PUBLIC_RAZORPAY_KEY_ID` that didn't match the API's. A key mismatch breaks
+payment, because the widget can only pay orders created with the same key.
+
+- **`RAZORPAY_MODE=test|live`** (API) selects between two complete key sets,
+  `RAZORPAY_TEST_{KEY_ID,KEY_SECRET,WEBHOOK_SECRET}` and `RAZORPAY_LIVE_*`, which can
+  both be present. Switching is one word plus a restart. Resolved by
+  `resolvePaymentConfig()` in `config/env.ts`, which **fails startup with a readable
+  error** when: the active mode's keys are missing; a key's prefix doesn't match the
+  mode (`rzp_live_` in the test slot or vice versa, catching the easiest paste
+  mistake); or `PAYMENTS_MOCK=true` is combined with `NODE_ENV=production` or live
+  mode, since mock accepts fake payments. A missing webhook secret is allowed (no
+  webhook exists until the API is deployed); webhooks are then rejected rather than
+  checked against an empty secret.
+- **The API is the single source of truth for the browser.** `POST /orders` returns
+  `checkout: { provider, keyId, mock }`, the public key id of the active mode, which is
+  the same key that created that order's Razorpay order. `CheckoutClient` opens the
+  widget with it. `NEXT_PUBLIC_RAZORPAY_KEY_ID` and `NEXT_PUBLIC_PAYMENTS_MOCK` are
+  removed from `apps/web` entirely, so the two apps can't drift apart, and Vercel needs
+  no Razorpay settings. (Chosen over a separate `GET /payments/config`: tying the key to
+  the order makes a mismatch impossible even across a mode switch or an idempotent
+  replay.)
+- The Razorpay SDK client is now created lazily (`getRazorpay()`), because its
+  constructor throws without keys, which is the normal state in mock mode.
+- **Test isolation bug found and fixed**: API tests were silently reading the
+  developer's real `apps/api/.env`, through `dotenv` in `env.ts` and also through the
+  generated Prisma client, which auto-loads `.env` on import. A local
+  `PAYMENTS_MOCK=true` flipped a signature test into mock mode. `env.ts` now skips
+  dotenv under `NODE_ENV=test`, and `vitest.config.ts` pins `PAYMENTS_MOCK` and
+  `RAZORPAY_MODE` explicitly (Prisma's loader never overrides set vars).
+
+**Verified**: 7 new unit tests for `resolvePaymentConfig` (both modes, prefix mismatch
+both ways, missing keys, missing webhook secret, mock allowed in dev with no keys, mock
+refused in production and live), 20/20 API and 75/75 web tests, lint and typecheck
+clean. All three startup guards refused with their messages when run for real. A live
+`POST /orders` in mock mode returned `checkout: {"provider":"razorpay","keyId":null,
+"mock":true}`, and mock verify confirmed the order (test data cleaned up, stock
+restored). **Then with the client's real test keys** (`PAYMENTS_MOCK=false`): the API
+started (guards passed), and `POST /orders` created a genuine Razorpay order
+(`order_…`). Fetching it from Razorpay's API showed the same amount as our order total
+(22500 paise), status `created`. The response carried
+`keyId: rzp_test_…` (the configured test key), and a forged signature on `/payments/verify` returned
+400. Test data cleaned up. Not exercised here: completing a payment in the real widget,
+which needs a person in the browser.
+
+Ops note: an editor tab holding a stale copy of `apps/api/.env` saved over the new
+Razorpay section once. If a `.env` edit "disappears", close the tab without saving and
+reopen it.
+
+---
+
 ## 2026-10-03 — Product page: layer tech, trust sections, review paging; false claim removed
 
 Client asked for: reviews 5 at a time with "show more", a section explaining the
