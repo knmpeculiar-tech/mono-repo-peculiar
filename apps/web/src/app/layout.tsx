@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Public_Sans } from "next/font/google";
+import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SiteChrome>{children}</SiteChrome>
           </CartProvider>
         </AuthProvider>
+        <SiteAnalytics />
       </body>
     </html>
   );

@@ -51,6 +51,27 @@ round trip from a real inbox. That needs a human-readable inbox.
 
 ---
 
+## 2026-10-13 — Vercel Web Analytics + Speed Insights
+
+Client asked to enable both from the Vercel dashboard. Added `@vercel/analytics`
+(2.0.1) and `@vercel/speed-insights` (2.0.0) to `apps/web`: official, small, cookieless,
+so no consent banner is needed. They're mounted once in the root layout via
+`components/analytics/SiteAnalytics.tsx`. It's a client component, because the
+`beforeSend` filter is a function and can't be passed from the server-rendered layout.
+
+**Privacy filter (`dropPrivate`)**: drops `/admin`, `/account`, `/auth` and
+`/reset-password` (path-segment match, so `/administration-guide` isn't dropped). Admin
+visits would inflate the shop's numbers, and the auth-callback and reset URLs can carry
+one-time sign-in codes that mustn't be sent to a third party. Checkout and
+order-confirmation stay tracked, since they're the conversion funnel.
+
+They send data only on Vercel deployments; locally they run in debug mode and send
+nothing. Verified: 3 unit tests for the filter; in a real browser (dev server) both
+scripts loaded and page views went through `beforeSend` with no console errors;
+web lint/typecheck/test (78)/build green. Data appears after the next Vercel deploy.
+
+---
+
 ## 2026-10-13 — Hosting: API on the VPS with Docker Compose, frontend on Vercel, DB on Supabase
 
 The client bought a Hostinger VPS. Final split, client-confirmed:
@@ -88,6 +109,15 @@ Linux Prisma engine, no `.env` or `src`, no dev deps; 497 MB. The full stack wit
 over Caddy HTTPS, HTTP→HTTPS 308, and the API container published no host ports. The
 missing-`API_DOMAIN` guard fired. The stack was torn down afterwards. Step-by-step
 server guide in `deploy/README.md`.
+
+**Deployed 2026-10-13** to the Hostinger KVM 1 VPS (Ubuntu 26.04, x86_64, 3.8 GB RAM,
+Docker 29.9 / Compose 5.6). The repo is cloned to `/srv/peculiar` with a read-only GitHub
+deploy key. `ufw` allows only 22/80/443. DNS `api.peculiars.in` → `187.126.124.176`.
+Verified from outside: `/api/health` 200; `/api/products` 200 with real Supabase data;
+Let's Encrypt certificate for `api.peculiars.in` (valid to 2027-01-10, auto-renewed by
+Caddy); HTTP→HTTPS 308; port 4000 closed to the internet; `/api/admin/me` 401 without
+a token. Razorpay is in test mode. The non-Docker deploy scripts from a parallel session
+(nginx/systemd) were removed at the client's request, leaving one deployment method.
 
 ---
 
