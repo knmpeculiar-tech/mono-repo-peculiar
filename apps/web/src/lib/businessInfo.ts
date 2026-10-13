@@ -5,13 +5,17 @@
 // a placeholder or a guessed value. See docs/decisions.md.
 export const BUSINESS = {
   brandName: "Peculiar",
-  /** Registered proprietorship name, exactly as on GST/Udyam/shop registration. */
+  /**
+   * Registered trade name, if different from the brand. For a proprietorship
+   * the legal name is the proprietor's own (below), so this stays null unless
+   * the GST certificate shows a separate trade name.
+   */
   legalName: null as string | null,
   /** Proprietor's full legal name (also the default Grievance Officer). */
-  proprietorName: null as string | null,
+  proprietorName: "Kripanand Prasad" as string | null,
   /** Full registered address, including PIN code. */
-  address: null as string | null,
-  gstin: null as string | null,
+  address: "B-230, Mandawali, Delhi – 110092" as string | null,
+  gstin: "07BIMPP4508F1Z5" as string | null,
 
   email: "pkunjanand@gmail.com",
   /** Display form; `phoneHref` is the tel: link. */

@@ -123,6 +123,14 @@ customer-care contact and a Grievance Officer.
   Rules' own requirement. The shipping wording ("any delivery charge is shown at
   checkout before you pay") is true both before and after a delivery fee is
   implemented; checkout currently charges ₹0, pending the fee amount.
+- **Business details filled (2026-10-13, from the proprietor):** proprietor **Kripanand
+  Prasad** (matches the Razorpay account owner), address **B-230, Mandawali, Delhi –
+  110092**, GSTIN **07BIMPP4508F1Z5**. The GSTIN was validated before use: the check
+  digit is valid, state code 07 is Delhi (matching the address), and the embedded PAN
+  is an individual's, consistent with a proprietorship. `legalName` stays null: a
+  proprietorship's legal name is the proprietor's own, and no separate trade name was
+  given. Terms jurisdiction is now "courts at Delhi" (the registered address), an
+  assumption to confirm. Still null: dispatch and delivery times.
 - Operational note: cancelling an order in admin restocks it but does **not** refund
   the payment. The policy promises a full refund, so refunds must be issued from the
   Razorpay dashboard.

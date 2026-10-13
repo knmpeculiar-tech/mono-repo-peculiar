@@ -73,7 +73,10 @@ export default function TermsPage() {
       </p>
 
       <h2>9. Governing law</h2>
-      <p>These terms are governed by the laws of India, and disputes are subject to the courts of India.</p>
+      <p>
+        These terms are governed by the laws of India, and disputes are subject to the jurisdiction of the
+        courts at Delhi.
+      </p>
 
       <h2>10. Changes</h2>
       <p>
