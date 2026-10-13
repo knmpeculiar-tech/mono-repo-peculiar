@@ -18,8 +18,8 @@ const ITEMS = [
   },
   {
     icon: RefreshIcon,
-    title: `${BRAND_FACTS.returnWindowDays}-day easy returns`,
-    detail: `Return within ${BRAND_FACTS.returnWindowDays} days of delivery`,
+    title: "Damaged or wrong item?",
+    detail: `Tell us within ${BRAND_FACTS.issueReportDays} days of delivery and we'll make it right`,
   },
   {
     icon: TruckIcon,

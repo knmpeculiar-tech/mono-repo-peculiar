@@ -51,6 +51,50 @@ round trip from a real inbox. That needs a human-readable inbox.
 
 ---
 
+## 2026-10-13 — Policy pages for Razorpay website verification; return claims corrected
+
+Razorpay's website review expects Contact Us, Terms & Conditions, Privacy Policy,
+Cancellation & Refund, and Shipping & Delivery pages, linked site-wide. The site had
+none. India's Consumer Protection (E-Commerce) Rules 2020 also require seller identity,
+customer-care contact and a Grievance Officer.
+
+- **Client-confirmed facts** (2026-10-13): registered proprietorship; contact
+  `pkunjanand@gmail.com` / +91 77798 11264; delivery all-India **with a delivery
+  charge**; **returns only for damaged/defective/wrong items** (reported within 7 days
+  of delivery); **cancellation any time before dispatch with a full refund**.
+- **A false claim was live and is fixed**: "7-day easy returns" (hero, product trust
+  strip, both FAQs) implied any return. It's replaced with the real policy
+  ("damaged-item cover", "Damaged or wrong item? Tell us within 7 days…").
+  `BRAND_FACTS.returnWindowDays` became `issueReportDays`.
+- **All legal/contact facts live in `lib/businessInfo.ts`.** Unconfirmed fields are
+  `null` (registered name, proprietor name, address, GSTIN, dispatch and delivery
+  times), and pages **omit** a null line rather than show a placeholder or a guess.
+  Filling the file updates every page.
+- Pages: `/contact`, `/shipping-policy`, `/refund-policy`, `/terms` and `/privacy`, on
+  a shared `LegalPage` shell (last-updated date and cross-links). They're linked from a
+  new footer "Policies" row on every page and added to the sitemap. The privacy policy
+  describes what the system actually does: Supabase stores accounts and orders,
+  Razorpay handles payments, Vercel and Hostinger host, couriers get delivery details,
+  cookieless analytics excludes account pages, a login cookie plus a localStorage cart,
+  and DPDP Act 2023 rights.
+- **Assumptions to confirm**: the damaged-item remedy is "replacement or refund", and
+  we ask for the order number plus a photo. The refund timing ("usually 5–7 business
+  days, depending on your bank") describes standard Razorpay refunds. The Grievance
+  Officer commitment (acknowledge within 48h, resolve within one month) is the 2020
+  Rules' own requirement. The shipping wording ("any delivery charge is shown at
+  checkout before you pay") is true both before and after a delivery fee is
+  implemented; checkout currently charges ₹0, pending the fee amount.
+- Operational note: cancelling an order in admin restocks it but does **not** refund
+  the payment. The policy promises a full refund, so refunds must be issued from the
+  Razorpay dashboard.
+
+Verified in a real browser (1280px and 390px): all 5 pages 200, no horizontal
+overflow, no console errors, no "null"/placeholder text; footer policy links present
+and working; "easy returns" gone from the homepage and product page; sitemap lists the
+pages. Web lint/typecheck/test (78) green.
+
+---
+
 ## 2026-10-13 — Vercel Web Analytics + Speed Insights
 
 Client asked to enable both from the Vercel dashboard. Added `@vercel/analytics`

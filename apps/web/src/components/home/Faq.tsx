@@ -1,7 +1,7 @@
-// Answers here are customer-facing policy claims. Confirmed by the client
-// (2026-10-03): 7-day returns, discreet packaging. Still unconfirmed: the
-// delivery estimate and the "unopened packs" return condition — confirm
-// before launch. Never add a shipping-cost claim (no free-shipping threshold
+// Answers here are customer-facing policy claims. Confirmed by the client:
+// discreet packaging; damaged/defective/wrong items only, reported within 7
+// days; cancellation before dispatch with a full refund (2026-10-13). Still
+// unconfirmed: the delivery estimate — confirm before launch. Never add a shipping-cost claim (no free-shipping threshold
 // exists). Confirmed facts live in lib/brandFacts.ts.
 const FAQS = [
   {
@@ -21,7 +21,7 @@ const FAQS = [
   {
     question: "Can I return or exchange an order?",
     answer:
-      "Unopened packs can be returned within 7 days of delivery — reach out and we'll sort it out.",
+      "As these are hygiene products, we can't take back opened or unwanted packs. If your order arrives damaged, defective or wrong, tell us within 7 days of delivery and we'll replace it or refund you. You can also cancel any order for a full refund until it's dispatched.",
   },
   {
     question: "Is my payment information secure?",

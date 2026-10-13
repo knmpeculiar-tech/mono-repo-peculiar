@@ -14,6 +14,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     listBlogPosts(revalidate).catch(() => []),
   ]);
 
+  const policyEntries: MetadataRoute.Sitemap = [
+    "/about",
+    "/contact",
+    "/shipping-policy",
+    "/refund-policy",
+    "/terms",
+    "/privacy",
+  ].map((path) => ({ url: `${SITE_URL}${path}`, changeFrequency: "monthly", priority: 0.3 }));
+
   const staticEntries: MetadataRoute.Sitemap = [
     { url: SITE_URL, lastModified: new Date(), changeFrequency: "daily", priority: 1 },
     {
@@ -38,5 +47,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }));
 
-  return [...staticEntries, ...productEntries, ...postEntries];
+  return [...staticEntries, ...policyEntries, ...productEntries, ...postEntries];
 }

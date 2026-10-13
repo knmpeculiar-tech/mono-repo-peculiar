@@ -25,8 +25,8 @@ const FAQS = [
       "Yes. Orders ship in a plain outer box that doesn't show what's inside, and every pad is individually wrapped.",
   },
   {
-    question: "Can I return my order?",
-    answer: `Yes, we offer ${BRAND_FACTS.returnWindowDays}-day easy returns.`,
+    question: "What if my order arrives damaged or wrong?",
+    answer: `Tell us within ${BRAND_FACTS.issueReportDays} days of delivery and we'll replace it or refund you. As these are hygiene products, opened or unwanted packs can't be returned. You can cancel any order for a full refund until it's dispatched.`,
   },
   {
     question: "Is paying online safe?",

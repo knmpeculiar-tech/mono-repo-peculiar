@@ -7,7 +7,7 @@ import { BRAND_FACTS } from "@/lib/brandFacts";
 // "Free shipping over ₹499", which was demo copy and isn't true.
 const TRUST_ITEMS = [
   { icon: PackagesIcon, label: `${BRAND_FACTS.packsSold} packs sold` },
-  { icon: RefreshIcon, label: `${BRAND_FACTS.returnWindowDays}-day easy returns` },
+  { icon: RefreshIcon, label: `${BRAND_FACTS.issueReportDays}-day damaged-item cover` },
   { icon: LockIcon, label: "Secure checkout" },
 ];
 
