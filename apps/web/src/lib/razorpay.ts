@@ -4,8 +4,19 @@ export interface RazorpaySuccessResponse {
   razorpay_signature: string;
 }
 
+/** Shape of Razorpay's `payment.failed` event (fields Razorpay may omit are optional). */
+export interface RazorpayFailureResponse {
+  error?: {
+    code?: string;
+    description?: string;
+    reason?: string;
+    metadata?: { order_id?: string; payment_id?: string };
+  };
+}
+
 interface RazorpayInstance {
   open: () => void;
+  on: (event: "payment.failed", handler: (response: RazorpayFailureResponse) => void) => void;
 }
 
 interface RazorpayOptions {
@@ -64,6 +75,17 @@ export interface OpenRazorpayCheckoutParams {
   onSuccess: (response: RazorpaySuccessResponse) => void;
   /** Widget closed without completing payment — the order stays 'pending'. */
   onDismiss?: () => void;
+  /**
+   * A payment attempt failed (declined card, failed UPI, …). Razorpay keeps its
+   * window open so the customer can retry; this is for telling them why.
+   */
+  onFailure?: (message: string) => void;
+}
+
+const GENERIC_FAILURE = "The payment didn't go through";
+
+export function paymentFailureMessage(response: RazorpayFailureResponse): string {
+  return response.error?.description?.trim() || GENERIC_FAILURE;
 }
 
 export async function openRazorpayCheckout(params: OpenRazorpayCheckoutParams): Promise<void> {
@@ -91,5 +113,7 @@ export async function openRazorpayCheckout(params: OpenRazorpayCheckoutParams): 
     modal: { ondismiss: params.onDismiss },
   });
 
+  // Registered before open() so no failure event can be missed.
+  razorpay.on("payment.failed", (response) => params.onFailure?.(paymentFailureMessage(response)));
   razorpay.open();
 }

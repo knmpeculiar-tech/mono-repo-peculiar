@@ -51,6 +51,45 @@ round trip from a real inbox. That needs a human-readable inbox.
 
 ---
 
+## 2026-10-13 — Razorpay Standard Checkout: completed rather than re-added
+
+The client pasted Razorpay's generic integration prompt (create-order, checkout modal,
+verify endpoints, `NEXT_PUBLIC_RAZORPAY_KEY_ID`) with new test keys. Per that prompt's
+own "already integrated → don't duplicate" rule, nothing was re-added:
+- Order creation already exists (`POST /api/orders`) and is safer than a generic
+  `/api/create-order` taking an `amount` from the browser, which would let a customer
+  pay any amount. The server computes the total from variant prices.
+- Verification (`POST /api/payments/verify`: HMAC `order_id|payment_id`, timing-safe
+  compare, 400 on mismatch, never marks paid) and the webhook already exist.
+- `NEXT_PUBLIC_RAZORPAY_KEY_ID` deliberately doesn't exist: the API sends the active
+  key with each order (see the RAZORPAY_MODE entry).
+
+**Gaps filled:**
+- `payment.failed` wasn't handled. `lib/razorpay.ts` now registers it **before**
+  `open()` and passes Razorpay's `error.description` (with a generic fallback) to an
+  `onFailure` callback.
+- **Bug:** every payment-stage error in `CheckoutClient` went to `formError`, which
+  renders only inside the address form, and that form is gone once the order exists. So
+  "payment could not be started" and "payment received but couldn't be confirmed —
+  contact support with order PEC-…" were invisible. These now go to a `paymentMessage`
+  shown in the order panel (`role="alert"` for errors, `status` for info): failures,
+  window dismissal, and a checkout.js load failure (previously an unhandled rejection).
+- Razorpay's ₹1 minimum: `createOrder` now rejects a total under 100 paise with a clear
+  400 **before** reserving stock, instead of reserve → Razorpay error → restock → 502.
+- New test keys (`rzp_test_TnOXO2…`) in `apps/api/.env`; the VPS's copy needs the same
+  edit.
+
+Verified live against Razorpay test mode with the new keys: order created and fetched
+back from Razorpay (amount matches); the response carries the new key id; a forged
+signature got 400 and the order stayed pending; missing fields got 400; a correctly
+computed HMAC got 200 and the order confirmed; an under-₹1 order got 400 with stock
+unchanged. Test data was cleaned up. Unit tests: listener registered before `open`,
+reason passed through, generic fallback. Web 81 / API 23 tests, lint and typecheck
+green. Not automated: the visual failure message in a real Razorpay window (needs a
+person and Razorpay's test failure flow).
+
+---
+
 ## 2026-10-13 — Policy pages for Razorpay website verification; return claims corrected
 
 Razorpay's website review expects Contact Us, Terms & Conditions, Privacy Policy,

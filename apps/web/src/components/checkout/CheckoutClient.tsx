@@ -44,6 +44,12 @@ export function CheckoutClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [order, setOrder] = useState<CreatedOrder | null>(null);
+  // Shown inside the "order created" panel — the address form (and its
+  // formError) is gone by the time the payment step can fail.
+  const [paymentMessage, setPaymentMessage] = useState<{
+    kind: "error" | "info";
+    text: string;
+  } | null>(null);
 
   const [liveProducts, setLiveProducts] = useState<Product[] | null>(null);
   const [isReconciling, setIsReconciling] = useState(true);
@@ -124,11 +130,12 @@ export function CheckoutClient() {
   function openWidgetFor(currentOrder: CreatedOrder) {
     const payment = currentOrder.payments[0];
     const keyId = currentOrder.checkout.keyId;
+    setPaymentMessage(null);
     if (!payment?.providerOrderId || !keyId) {
-      setFormError("Payment could not be started. Please contact support.");
+      setPaymentMessage({ kind: "error", text: "Payment could not be started. Please contact support." });
       return;
     }
-    void openRazorpayCheckout({
+    openRazorpayCheckout({
       keyId,
       providerOrderId: payment.providerOrderId,
       amountInPaise: currentOrder.totalInPaise,
@@ -136,17 +143,33 @@ export function CheckoutClient() {
       customerEmail: currentOrder.customerEmail ?? undefined,
       customerPhone: currentOrder.customerPhone,
       onSuccess: (response) => void handlePaymentSuccess(currentOrder, response),
-      onDismiss: () => {
-        // Order stays 'pending' — the "Retry payment" button reopens the
-        // same widget against the same order, no new order is created.
-      },
-    });
+      onFailure: (reason) =>
+        setPaymentMessage({
+          kind: "error",
+          text: `Payment failed: ${reason}. Your order is still held — try again or use another payment method.`,
+        }),
+      // Order stays 'pending' — "Retry payment" reopens the same widget
+      // against the same order; no new order is created.
+      onDismiss: () =>
+        setPaymentMessage(
+          (current) =>
+            current ?? {
+              kind: "info",
+              text: "Payment window closed. Your order is held — click Retry payment when you're ready.",
+            },
+        ),
+    }).catch(() =>
+      setPaymentMessage({
+        kind: "error",
+        text: "Couldn't open the payment window. Check your internet connection and try again.",
+      }),
+    );
   }
 
   async function handleMockPayment(pendingOrder: Order) {
     const payment = pendingOrder.payments[0];
     if (!payment?.providerOrderId) {
-      setFormError("Payment could not be started. Please contact support.");
+      setPaymentMessage({ kind: "error", text: "Payment could not be started. Please contact support." });
       return;
     }
     await handlePaymentSuccess(pendingOrder, {
@@ -170,9 +193,10 @@ export function CheckoutClient() {
       clear();
       router.push(`/order-confirmation/${verified.id}`);
     } catch {
-      setFormError(
-        `Payment was received but we couldn't confirm it automatically. Please contact support with your order number: ${pendingOrder.orderNumber}.`,
-      );
+      setPaymentMessage({
+        kind: "error",
+        text: `Payment was received but we couldn't confirm it automatically. Please contact support with your order number: ${pendingOrder.orderNumber}.`,
+      });
     }
   }
 
@@ -266,6 +290,14 @@ export function CheckoutClient() {
                   ? "Payments are in mock mode — simulate a successful payment to confirm it."
                   : "Complete your payment to confirm it — the order is held for you in the meantime."}
               </p>
+              {paymentMessage ? (
+                <p
+                  role={paymentMessage.kind === "error" ? "alert" : "status"}
+                  className={`mt-3 text-sm ${paymentMessage.kind === "error" ? "text-danger" : "text-muted-foreground"}`}
+                >
+                  {paymentMessage.text}
+                </p>
+              ) : null}
               {order.checkout.mock ? (
                 <Button className="mt-4" onClick={() => void handleMockPayment(order)}>
                   Simulate successful payment

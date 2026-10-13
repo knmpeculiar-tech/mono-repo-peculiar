@@ -8,6 +8,8 @@ import { variantDisplayName } from "./product.service";
 import type { CreateOrderInput } from "../validators/order.validator";
 
 const ORDER_INCLUDE = { items: true, payments: true } as const;
+// Razorpay's minimum order amount.
+const MIN_ORDER_PAISE = 100;
 
 function generateOrderNumber() {
   const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -46,6 +48,16 @@ export async function createOrder(input: CreateOrderInput, profileId: string) {
     if (!variantById.has(item.variantId)) {
       throw new HttpError(400, `Variant ${item.variantId} is not available`);
     }
+  }
+
+  // Razorpay rejects orders under ₹1. Checked before any stock is reserved, so
+  // the customer gets a clear error instead of a reserve-then-compensate 502.
+  const expectedTotal = input.items.reduce(
+    (sum, item) => sum + variantById.get(item.variantId)!.priceInPaise * item.quantity,
+    0,
+  );
+  if (expectedTotal < MIN_ORDER_PAISE) {
+    throw new HttpError(400, "Order total must be at least ₹1");
   }
 
   // Stock is decremented with a conditional `WHERE stock >= quantity` inside
