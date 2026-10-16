@@ -18,7 +18,17 @@ export function OrderDetailCard({ order }: { order: Order }) {
           </li>
         ))}
       </ul>
-      <div className="border-border mt-4 flex items-center justify-between border-t pt-4">
+      <dl className="border-border text-muted-foreground mt-4 flex flex-col gap-1.5 border-t pt-4 text-sm">
+        <div className="flex justify-between">
+          <dt>Subtotal</dt>
+          <dd>{formatPaise(order.subtotalInPaise)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt>Shipping</dt>
+          <dd>{order.shippingInPaise === 0 ? "Free" : formatPaise(order.shippingInPaise)}</dd>
+        </div>
+      </dl>
+      <div className="border-border mt-3 flex items-center justify-between border-t pt-3">
         <span className="font-medium">Total</span>
         <span className="font-semibold">{formatPaise(order.totalInPaise)}</span>
       </div>

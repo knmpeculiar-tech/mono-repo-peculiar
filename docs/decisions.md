@@ -1629,3 +1629,15 @@ Decisions/assumptions made while building this:
 - **Decision:** Did not scaffold `apps/web`, `apps/api`, or `prisma/schema.prisma` in
   this pass — this was a configuration-only setup (`CLAUDE.md`, rules, gitignore, env
   example, workspace config). Actual app scaffolding is the next phase.
+
+## About page rewrite with client photos (2026-10-16)
+
+- `/about` now tells the brand story and uses two client-supplied photos: `customers.jpeg`
+  (customers holding Peculiar packs) and `kunja.jpeg` (the founder at the "15 Secrets of
+  Success" business event, East Delhi, 25 July 2026, per the event banner in the photo).
+- The copy uses only confirmed facts: `BRAND_FACTS`, `BUSINESS.proprietorName`, and the
+  pad construction already shown in `LayerTech`. No founding year, award or certification
+  claims. The event photo is a group shot, so neither the caption nor the alt text says
+  which person is the founder.
+- Assumption: the client has consent from the people shown in `customers.jpeg` to use the
+  photo publicly (it includes children). To confirm with the client.
