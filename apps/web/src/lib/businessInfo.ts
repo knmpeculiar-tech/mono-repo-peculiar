@@ -12,7 +12,7 @@ export const BUSINESS = {
    */
   legalName: null as string | null,
   /** Proprietor's full legal name (also the default Grievance Officer). */
-  proprietorName: "Kripanand Prasad" as string | null,
+  proprietorName: "Kunjanand Prasad" as string | null,
   /** Full registered address, including PIN code. */
   address: "B-230, Mandawali, Delhi – 110092" as string | null,
   gstin: "07BIMPP4508F1Z5" as string | null,
